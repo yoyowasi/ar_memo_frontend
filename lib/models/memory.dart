@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class Memory {
   final String id;
   final String? userId;
@@ -31,10 +33,14 @@ class Memory {
     this.updatedAt,
   });
 
+  // 위경도 값에 더 쉽게 접근하기 위한 getter
   double? get latitude => coordinates.length >= 2 ? coordinates[1] : null;
   double? get longitude => coordinates.length >= 2 ? coordinates[0] : null;
+
+  // 대표 이미지를 가져오기 위한 getter
   String? get coverImage => photoUrl ?? thumbUrl;
 
+  /// JSON 데이터를 Memory 객체로 변환하는 factory 생성자
   factory Memory.fromJson(Map<String, dynamic> json) {
     final location = json['location'] as Map<String, dynamic>?;
     final coordinatesRaw =
@@ -61,6 +67,7 @@ class Memory {
     );
   }
 
+  /// Memory 객체를 JSON 데이터로 변환하는 메서드
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -80,6 +87,6 @@ class Memory {
       'groupId': groupId,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
-    }..removeWhere((key, value) => value == null);
+    }..removeWhere((key, value) => value == null); // null 값인 필드는 제거
   }
 }
