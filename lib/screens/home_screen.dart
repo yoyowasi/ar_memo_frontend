@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/models/memory.dart';
+
 import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
@@ -9,13 +10,17 @@ import 'package:ar_memo_frontend/theme/colors.dart';
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
-  Future<void> _refreshMemories(WidgetRef ref) {
-    return ref.refresh(myMemoriesProvider.future);
+  Future<void> _refreshMemories(WidgetRef ref) async {
+    await Future.wait([
+      ref.refresh(myMemoriesProvider.future),
+      ref.refresh(memorySummaryProvider.future),
+    ]);
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final memoriesAsyncValue = ref.watch(myMemoriesProvider);
+    final summaryAsyncValue = ref.watch(memorySummaryProvider);
     final baseUrl = dotenv.env['API_BASE_URL']?.replaceAll('/api', '');
 
     return Scaffold(
@@ -58,10 +63,22 @@ class HomeScreen extends ConsumerWidget {
                     _SearchField(),
                     const SizedBox(height: 24),
                     const _HeroCard(),
+                    const SizedBox(height: 24),
+                    summaryAsyncValue.when(
+                      data: (summary) => _SummarySection(summary: summary),
+                      loading: () => const _SummaryLoading(),
+                      error: (err, stack) => _SummaryError(
+                        message: err.toString(),
+                        onRetry: () {
+                          ref.refresh(memorySummaryProvider.future);
+                        },
+                      ),
+                    ),
                     const SizedBox(height: 32),
                     _SectionHeader(
                       title: '내 주변 메모',
                       actionLabel: memoryList.isNotEmpty ? '전체보기' : null,
+
                       onTap: () {},
                     ),
                     const SizedBox(height: 16),
@@ -203,6 +220,168 @@ class _HeroCard extends StatelessWidget {
               elevation: 0,
             ),
             child: const Text('지금 확인하기'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummarySection extends StatelessWidget {
+  final MemorySummary summary;
+
+  const _SummarySection({required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _SummaryCard(
+            title: '전체 메모',
+            value: summary.total,
+            gradientColors: const [Color(0xFF4C6EF5), Color(0xFF79A6F6)],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _SummaryCard(
+            title: '주변 메모',
+            value: summary.nearby,
+            gradientColors: const [Color(0xFF51CF66), Color(0xFF94E1A1)],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _SummaryCard(
+            title: '이번 달',
+            value: summary.thisMonth,
+            gradientColors: const [Color(0xFFFF922B), Color(0xFFFFC078)],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  final String title;
+  final int value;
+  final List<Color> gradientColors;
+
+  const _SummaryCard({
+    required this.title,
+    required this.value,
+    required this.gradientColors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: gradientColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: gradientColors.last.withOpacity(0.35),
+            blurRadius: 18,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: bodyText2.copyWith(color: Colors.white.withOpacity(0.9)),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value.toString(),
+            style: heading1.copyWith(color: Colors.white, fontSize: 28),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryLoading extends StatelessWidget {
+  const _SummaryLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(child: _SummarySkeletonCard()),
+        const SizedBox(width: 12),
+        Expanded(child: _SummarySkeletonCard()),
+        const SizedBox(width: 12),
+        Expanded(child: _SummarySkeletonCard()),
+      ],
+    );
+  }
+}
+
+class _SummarySkeletonCard extends StatelessWidget {
+  const _SummarySkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 110,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderColor),
+      ),
+    );
+  }
+}
+
+class _SummaryError extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _SummaryError({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: subTextColor),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '통계 정보를 불러올 수 없어요.\n$message',
+              style: bodyText2,
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(
+              foregroundColor: primaryColor,
+            ),
+            child: Text(
+              '다시 시도',
+              style: bodyText2.copyWith(
+                color: primaryColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
