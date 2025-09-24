@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// ✨ AR 메모 데이터를 가져오기 위해 'memory_provider.dart'를 import 합니다.
+import 'package:ar_memo_frontend/models/memory.dart';
+import 'package:ar_memo_frontend/models/memory_summary.dart';
 import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
@@ -9,86 +10,694 @@ import 'package:ar_memo_frontend/theme/colors.dart';
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
+  Future<void> _refreshMemories(WidgetRef ref) async {
+    await Future.wait([
+      ref.refresh(myMemoriesProvider.future),
+      ref.refresh(memorySummaryProvider.future),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ✨✨✨
-    // ✨ 이 부분이 가장 중요합니다. 'myMemoriesProvider'를 사용해야 합니다.
-    // ✨✨✨
     final memoriesAsyncValue = ref.watch(myMemoriesProvider);
-    final baseUrl = dotenv.env['API_BASE_URL']!.replaceAll('/api', '');
+    final summaryAsyncValue = ref.watch(memorySummaryProvider);
+    final baseUrl = dotenv.env['API_BASE_URL']?.replaceAll('/api', '');
 
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text('AR 메모', style: heading2),
         backgroundColor: Colors.white,
-        elevation: 1,
+        elevation: 0,
+        titleSpacing: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text('오늘도 새로운 추억을 남겨보세요', style: bodyText2),
+            SizedBox(height: 4),
+            Text('AR Memo', style: heading2),
+          ],
+        ),
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+              color: backgroundColor,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.notifications_none, color: textColor),
+          ),
+        ],
       ),
       body: memoriesAsyncValue.when(
         data: (memoryList) {
-          if (memoryList.isEmpty) {
-            return const Center(child: Text('주변에 AR 메모가 없습니다.', style: bodyText1));
-          }
-
-          return GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.8,
-            ),
-            itemCount: memoryList.length,
-            itemBuilder: (context, index) {
-              // 이제 'memory'는 'Memory' 타입이므로 오류가 발생하지 않습니다.
-              final memory = memoryList[index];
-              final imageUrl = memory.thumbUrl ?? memory.photoUrl;
-
-              return Card(
-                clipBehavior: Clip.antiAlias,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 2,
+          return RefreshIndicator(
+            onRefresh: () => _refreshMemories(ref),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Container(
-                        color: Colors.grey.shade200,
-                        child: imageUrl != null
-                            ? Image.network(
-                          "$baseUrl$imageUrl",
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(Icons.broken_image, color: Colors.grey);
-                          },
-                        )
-                            : const Icon(Icons.text_fields, size: 40, color: Colors.grey),
+                    _SearchField(),
+                    const SizedBox(height: 24),
+                    const _HeroCard(),
+                    const SizedBox(height: 24),
+                    summaryAsyncValue.when(
+                      data: (summary) => _SummarySection(summary: summary),
+                      loading: () => const _SummaryLoading(),
+                      error: (err, stack) => _SummaryError(
+                        message: err.toString(),
+                        onRetry: () {
+                          ref.refresh(memorySummaryProvider.future);
+                        },
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        // memory.text 필드를 정상적으로 사용할 수 있습니다.
-                        memory.text ?? '사진 메모',
-                        style: bodyText1,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                    const SizedBox(height: 32),
+                    _SectionHeader(
+                      title: '내 주변 메모',
+                      actionLabel: memoryList.isNotEmpty ? '전체보기' : null,
+                      onTap: () {},
                     ),
+                    const SizedBox(height: 16),
+                    if (memoryList.isEmpty)
+                      _EmptyPlaceholder(
+                        icon: Icons.location_off,
+                        title: '주변에 등록된 메모가 없어요',
+                        description: '새로운 메모를 추가하거나 다른 지역을 탐색해보세요.',
+                      )
+                    else
+                      _MemoryCarousel(memories: memoryList, baseUrl: baseUrl),
+                    const SizedBox(height: 32),
+                    _SectionHeader(
+                      title: '인기 태그',
+                      actionLabel: null,
+                      onTap: () {},
+                    ),
+                    const SizedBox(height: 16),
+                    _TagWrap(memories: memoryList),
+                    const SizedBox(height: 32),
+                    _SectionHeader(
+                      title: '최근에 저장한 메모',
+                      actionLabel: memoryList.length > 3 ? '더 보기' : null,
+                      onTap: () {},
+                    ),
+                    const SizedBox(height: 16),
+                    if (memoryList.isEmpty)
+                      _EmptyPlaceholder(
+                        icon: Icons.bookmark_border,
+                        title: '아직 저장한 메모가 없어요',
+                        description: '첫 번째 AR 메모를 등록해보세요.',
+                      )
+                    else
+                      _RecentMemoryList(memories: memoryList, baseUrl: baseUrl),
+                    const SizedBox(height: 120),
                   ],
                 ),
-              );
-            },
+              ),
+            ),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('메모를 불러오지 못했습니다: $err')),
+        error: (err, stack) => Center(
+          child: _EmptyPlaceholder(
+            icon: Icons.wifi_off,
+            title: '메모를 불러올 수 없어요',
+            description: '잠시 후 다시 시도해주세요.\n$err',
+          ),
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           // TODO: AR 메모 생성 화면으로 이동하는 로직 구현
         },
         backgroundColor: primaryColor,
-        child: const Icon(Icons.add, color: Colors.white),
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text('메모 추가', style: buttonText),
+      ),
+    );
+  }
+}
+
+class _SearchField extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            offset: const Offset(0, 10),
+            blurRadius: 30,
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        children: const [
+          Icon(Icons.search, color: subTextColor),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '태그나 키워드로 메모를 검색해보세요',
+              style: bodyText2,
+            ),
+          ),
+          Icon(Icons.tune, color: subTextColor),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroCard extends StatelessWidget {
+  const _HeroCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [primaryColor, secondaryColor],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.3),
+            blurRadius: 35,
+            offset: const Offset(0, 20),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '주변에 떠 있는 AR 메모',
+            style: heading1.copyWith(color: Colors.white, fontSize: 26),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '가까운 친구들의 메모를 살펴보고 새로운 추억을 공유해보세요.',
+            style: bodyText2.copyWith(color: Colors.white.withOpacity(0.85)),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () {},
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: primaryColor,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              elevation: 0,
+            ),
+            child: const Text('지금 확인하기'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummarySection extends StatelessWidget {
+  final MemorySummary summary;
+
+  const _SummarySection({required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _SummaryCard(
+            title: '전체 메모',
+            value: summary.total,
+            gradientColors: const [Color(0xFF4C6EF5), Color(0xFF79A6F6)],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _SummaryCard(
+            title: '주변 메모',
+            value: summary.nearby,
+            gradientColors: const [Color(0xFF51CF66), Color(0xFF94E1A1)],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _SummaryCard(
+            title: '이번 달',
+            value: summary.thisMonth,
+            gradientColors: const [Color(0xFFFF922B), Color(0xFFFFC078)],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  final String title;
+  final int value;
+  final List<Color> gradientColors;
+
+  const _SummaryCard({
+    required this.title,
+    required this.value,
+    required this.gradientColors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: gradientColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: gradientColors.last.withOpacity(0.35),
+            blurRadius: 18,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: bodyText2.copyWith(color: Colors.white.withOpacity(0.9)),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value.toString(),
+            style: heading1.copyWith(color: Colors.white, fontSize: 28),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryLoading extends StatelessWidget {
+  const _SummaryLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(child: _SummarySkeletonCard()),
+        const SizedBox(width: 12),
+        Expanded(child: _SummarySkeletonCard()),
+        const SizedBox(width: 12),
+        Expanded(child: _SummarySkeletonCard()),
+      ],
+    );
+  }
+}
+
+class _SummarySkeletonCard extends StatelessWidget {
+  const _SummarySkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 110,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderColor),
+      ),
+    );
+  }
+}
+
+class _SummaryError extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _SummaryError({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: subTextColor),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '통계 정보를 불러올 수 없어요.\n$message',
+              style: bodyText2,
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(
+              foregroundColor: primaryColor,
+            ),
+            child: Text(
+              '다시 시도',
+              style: bodyText2.copyWith(
+                color: primaryColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String? actionLabel;
+  final VoidCallback onTap;
+
+  const _SectionHeader({
+    required this.title,
+    required this.actionLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(title, style: heading2.copyWith(fontSize: 18)),
+        const Spacer(),
+        if (actionLabel != null)
+          TextButton(
+            onPressed: onTap,
+            child: Row(
+              children: [
+                Text(actionLabel!, style: bodyText2.copyWith(color: primaryColor)),
+                const SizedBox(width: 4),
+                const Icon(Icons.arrow_forward_ios, size: 14, color: primaryColor),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _MemoryCarousel extends StatelessWidget {
+  final List<Memory> memories;
+  final String? baseUrl;
+
+  const _MemoryCarousel({required this.memories, required this.baseUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 240,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: memories.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 18),
+        itemBuilder: (context, index) {
+          final memory = memories[index];
+          final imageUrl = memory.thumbUrl ?? memory.photoUrl;
+
+          return Container(
+            width: 220,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 30,
+                  offset: const Offset(0, 18),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  child: AspectRatio(
+                    aspectRatio: 4 / 3,
+                    child: imageUrl != null && baseUrl != null
+                        ? Image.network(
+                            '$baseUrl$imageUrl',
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _ImagePlaceholder(icon: Icons.broken_image);
+                            },
+                          )
+                        : const _ImagePlaceholder(icon: Icons.photo_camera_outlined),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          memory.text ?? '사진 메모',
+                          style: bodyText1.copyWith(fontWeight: FontWeight.w600),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const Spacer(),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: memory.tags.take(3).map((tag) => _TagChip(tag: tag)).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TagWrap extends StatelessWidget {
+  final List<Memory> memories;
+
+  const _TagWrap({required this.memories});
+
+  @override
+  Widget build(BuildContext context) {
+    final tags = memories.expand((memory) => memory.tags).toSet().toList();
+
+    if (tags.isEmpty) {
+      return const _EmptyPlaceholder(
+        icon: Icons.sell_outlined,
+        title: '표시할 태그가 없어요',
+        description: '메모에 태그를 추가하면 빠르게 찾아볼 수 있어요.',
+      );
+    }
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: tags
+          .take(12)
+          .map((tag) => _TagChip(tag: tag))
+          .toList(),
+    );
+  }
+}
+
+class _TagChip extends StatelessWidget {
+  final String tag;
+
+  const _TagChip({required this.tag});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Text(
+        '#$tag',
+        style: bodyText2.copyWith(color: textColor),
+      ),
+    );
+  }
+}
+
+class _RecentMemoryList extends StatelessWidget {
+  final List<Memory> memories;
+  final String? baseUrl;
+
+  const _RecentMemoryList({required this.memories, required this.baseUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final recentMemories = memories.take(3).toList();
+
+    return Column(
+      children: recentMemories
+          .map(
+            (memory) => Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 25,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: SizedBox(
+                          height: 70,
+                          width: 70,
+                          child: _RecentMemoryThumbnail(
+                            imageUrl: memory.thumbUrl ?? memory.photoUrl,
+                            baseUrl: baseUrl,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              memory.text ?? '사진 메모',
+                              style: bodyText1.copyWith(fontWeight: FontWeight.w600),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 8),
+                            if (memory.tags.isNotEmpty)
+                              Wrap(
+                                spacing: 8,
+                                children: memory.tags.take(3).map((tag) => _TagChip(tag: tag)).toList(),
+                              ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {},
+                        icon: const Icon(Icons.more_vert, color: subTextColor),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _RecentMemoryThumbnail extends StatelessWidget {
+  final String? imageUrl;
+  final String? baseUrl;
+
+  const _RecentMemoryThumbnail({required this.imageUrl, required this.baseUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageUrl != null && baseUrl != null) {
+      return Image.network(
+        '$baseUrl$imageUrl',
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return const _ImagePlaceholder(icon: Icons.broken_image);
+        },
+      );
+    }
+    return const _ImagePlaceholder(icon: Icons.photo_camera_outlined);
+  }
+}
+
+class _ImagePlaceholder extends StatelessWidget {
+  final IconData icon;
+
+  const _ImagePlaceholder({required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: backgroundColor,
+      child: Icon(icon, color: subTextColor),
+    );
+  }
+}
+
+class _EmptyPlaceholder extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+
+  const _EmptyPlaceholder({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 42, color: subTextColor),
+          const SizedBox(height: 16),
+          Text(title, style: bodyText1.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            textAlign: TextAlign.center,
+            style: bodyText2,
+          ),
+        ],
       ),
     );
   }
