@@ -38,13 +38,15 @@ dependencies:
   http: ^1.2.1
 
     # 상태 관리
-  flutter_riverpod: ^2.5.1
+  flutter_riverpod: ^3.0.0
 
     # 데이터 저장
   shared_preferences: ^2.2.3
 
     # 환경 변수
-  flutter_dotenv: ^5.1.0
+  flutter_dotenv: ^6.0.0
+
+  intl: ^0.20.2 # 이 라인을 추가
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -59,7 +61,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -71,6 +73,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - .env
 
   # To add assets to your application, add an assets section, like this:
   # assets:
