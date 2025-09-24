@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/screens/create_trip_record_screen.dart';
+import 'package:ar_memo_frontend/theme/colors.dart';
+import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:intl/intl.dart';
 
 class TripRecordListScreen extends ConsumerWidget {
@@ -13,34 +15,57 @@ class TripRecordListScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('여행 기록'),
+        title: const Text('여행 기록', style: heading2),
+        backgroundColor: Colors.white,
+        elevation: 1,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(tripRecordsProvider),
+            icon: const Icon(Icons.refresh, color: textColor),
+            onPressed: () => ref.read(tripRecordsProvider.notifier).fetchTripRecords(),
           )
         ],
       ),
       body: tripRecordsAsyncValue.when(
         data: (records) {
           if (records.isEmpty) {
-            return const Center(child: Text('첫 여행 기록을 추가해보세요!'));
+            return const Center(child: Text('첫 여행 기록을 추가해보세요!', style: bodyText1));
           }
-          return ListView.builder(
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.8,
+            ),
             itemCount: records.length,
             itemBuilder: (context, index) {
               final record = records[index];
               return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: ListTile(
-                  title: Text(record.title),
-                  subtitle: Text(DateFormat('yyyy-MM-dd').format(record.date)),
-                  trailing: record.group != null
-                      ? Chip(
-                    label: Text(record.group!.name),
-                    backgroundColor: Color(int.parse(record.group!.color.replaceFirst('#', '0xFF'))),
-                  )
-                      : null,
+                clipBehavior: Clip.antiAlias,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Container(
+                        // TODO: record.photoUrls.first 를 이용해 이미지 표시
+                        color: secondaryColor.withOpacity(0.5),
+                        child: const Center(child: Icon(Icons.photo_camera, size: 40, color: Colors.white)),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(record.title, style: bodyText1.copyWith(fontWeight: FontWeight.bold)),
+                          Text(DateFormat('yyyy.MM.dd').format(record.date), style: bodyText2),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
@@ -56,7 +81,8 @@ class TripRecordListScreen extends ConsumerWidget {
             MaterialPageRoute(builder: (context) => const CreateTripRecordScreen()),
           );
         },
-        child: const Icon(Icons.add),
+        backgroundColor: primaryColor,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
