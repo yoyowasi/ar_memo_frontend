@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:ar_memo_frontend/screens/splash_screen.dart'; // 시작 화면 변경
+import 'package:ar_memo_frontend/screens/splash_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
-
   runApp(
     const ProviderScope(
       child: MyApp(),
@@ -27,8 +26,10 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: backgroundColor,
         colorScheme: ColorScheme.fromSeed(seedColor: primaryColor),
         useMaterial3: true,
+        fontFamily: 'Pretendard', // 앱 전체 폰트 적용 (폰트 파일 추가 필요)
       ),
-      home: const SplashScreen(), // 시작 화면을 SplashScreen으로 변경
+      debugShowCheckedModeBanner: false,
+      home: const SplashScreen(),
     );
   }
 }

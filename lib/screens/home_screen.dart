@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// ✨ AR 메모 데이터를 가져오기 위해 'memory_provider.dart'를 import 해야 합니다.
+// ✨ AR 메모 데이터를 가져오기 위해 'memory_provider.dart'를 import 합니다.
 import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
@@ -11,9 +11,10 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ✨ 여행 기록이 아닌 'myMemoriesProvider'를 사용하여 AR 메모 목록을 가져옵니다.
+    // ✨✨✨
+    // ✨ 이 부분이 가장 중요합니다. 'myMemoriesProvider'를 사용해야 합니다.
+    // ✨✨✨
     final memoriesAsyncValue = ref.watch(myMemoriesProvider);
-    // .env 파일에서 API 서버의 기본 URL을 가져옵니다.
     final baseUrl = dotenv.env['API_BASE_URL']!.replaceAll('/api', '');
 
     return Scaffold(
@@ -28,7 +29,6 @@ class HomeScreen extends ConsumerWidget {
             return const Center(child: Text('주변에 AR 메모가 없습니다.', style: bodyText1));
           }
 
-          // 피그마 디자인에 맞춰 그리드 뷰로 메모 목록을 표시합니다.
           return GridView.builder(
             padding: const EdgeInsets.all(16),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -39,8 +39,8 @@ class HomeScreen extends ConsumerWidget {
             ),
             itemCount: memoryList.length,
             itemBuilder: (context, index) {
+              // 이제 'memory'는 'Memory' 타입이므로 오류가 발생하지 않습니다.
               final memory = memoryList[index];
-              // 썸네일이 있으면 썸네일을, 없으면 메인 사진을 사용합니다.
               final imageUrl = memory.thumbUrl ?? memory.photoUrl;
 
               return Card(
@@ -54,11 +54,9 @@ class HomeScreen extends ConsumerWidget {
                       child: Container(
                         color: Colors.grey.shade200,
                         child: imageUrl != null
-                        // '$baseUrl$imageUrl' 형태로 완전한 이미지 URL을 만듭니다.
                             ? Image.network(
                           "$baseUrl$imageUrl",
                           fit: BoxFit.cover,
-                          // 이미지 로딩 중 에러가 발생하면 아이콘을 표시합니다.
                           errorBuilder: (context, error, stackTrace) {
                             return const Icon(Icons.broken_image, color: Colors.grey);
                           },
@@ -69,7 +67,7 @@ class HomeScreen extends ConsumerWidget {
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: Text(
-                        // memory 객체의 text 필드를 사용합니다.
+                        // memory.text 필드를 정상적으로 사용할 수 있습니다.
                         memory.text ?? '사진 메모',
                         style: bodyText1,
                         maxLines: 2,

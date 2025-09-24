@@ -5,10 +5,8 @@ import 'package:ar_memo_frontend/services/api_service.dart';
 class TripRecordRepository {
   final ApiService _apiService = ApiService();
 
-  // 모든 여행 기록 가져오기
   Future<List<TripRecord>> getTripRecords() async {
     final response = await _apiService.get('/trip-records');
-
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       final List<dynamic> items = data['items'];
@@ -18,7 +16,6 @@ class TripRecordRepository {
     }
   }
 
-  // 새로운 여행 기록 생성
   Future<TripRecord> createTripRecord({
     required String title,
     required DateTime date,
@@ -33,15 +30,9 @@ class TripRecordRepository {
       'groupId': groupId,
       'photoUrls': photoUrls ?? [],
     };
-
-    // groupId가 null이면 json에서 제외
     body.removeWhere((key, value) => value == null);
 
-    final response = await _apiService.post(
-      '/trip-records',
-      jsonEncode(body),
-    );
-
+    final response = await _apiService.post('/trip-records', jsonEncode(body));
     if (response.statusCode == 201) {
       return TripRecord.fromJson(jsonDecode(response.body));
     } else {
