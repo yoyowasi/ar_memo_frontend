@@ -33,6 +33,7 @@ class TripRecordsNotifier extends StateNotifier<AsyncValue<List<TripRecord>>> {
     required DateTime date,
     String? content,
     String? groupId,
+    List<String>? photoUrls,
   }) async {
     try {
       await _repository.createTripRecord(
@@ -40,6 +41,7 @@ class TripRecordsNotifier extends StateNotifier<AsyncValue<List<TripRecord>>> {
         date: date,
         content: content,
         groupId: groupId,
+        photoUrls: photoUrls,
       );
       await fetchTripRecords();
     } catch (e) {
