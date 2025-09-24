@@ -31,9 +31,16 @@ class Memory {
     this.updatedAt,
   });
 
+  double? get latitude => coordinates.length >= 2 ? coordinates[1] : null;
+  double? get longitude => coordinates.length >= 2 ? coordinates[0] : null;
+  String? get coverImage => photoUrl ?? thumbUrl;
+
   factory Memory.fromJson(Map<String, dynamic> json) {
     final location = json['location'] as Map<String, dynamic>?;
-    final coordinatesRaw = location != null ? location['coordinates'] as List<dynamic>? : null;
+
+    final coordinatesRaw =
+        location != null ? location['coordinates'] as List<dynamic>? : json['coordinates'] as List<dynamic>?;
+
     final coordinates = coordinatesRaw != null
         ? coordinatesRaw.map((coord) => (coord as num).toDouble()).toList()
         : <double>[];
@@ -55,4 +62,28 @@ class Memory {
       updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt']) : null,
     );
   }
+
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'userId': userId,
+      'location': {
+        'type': 'Point',
+        'coordinates': coordinates,
+      },
+      'anchor': anchor,
+      'text': text,
+      'photoUrl': photoUrl,
+      'audioUrl': audioUrl,
+      'thumbUrl': thumbUrl,
+      'tags': tags,
+      'favorite': favorite,
+      'visibility': visibility,
+      'groupId': groupId,
+      'createdAt': createdAt?.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+    }..removeWhere((key, value) => value == null);
+  }
+
 }

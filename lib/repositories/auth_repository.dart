@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:ar_memo_frontend/services/api_service.dart';
 
 class AuthRepository {
@@ -14,10 +15,10 @@ class AuthRepository {
   Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await _apiService.post(
       '/auth/login',
-      jsonEncode(<String, String>{
+      data: <String, String>{
         'email': email,
         'password': password,
-      }),
+      },
     );
 
     if (response.statusCode == 200) {
@@ -40,7 +41,7 @@ class AuthRepository {
 
     final response = await _apiService.post(
       '/auth/register',
-      jsonEncode(body),
+      data: body,
     );
 
     if (response.statusCode == 201) {
@@ -52,6 +53,21 @@ class AuthRepository {
     }
   }
 
+  Future<Map<String, dynamic>> fetchCurrentUser() async {
+    final response = await _apiService.get('/auth/me');
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return data;
+      }
+      throw Exception('Unexpected user payload: ${response.body}');
+    }
+    if (response.statusCode == 401) {
+      await logout();
+      throw Exception('인증이 만료되었습니다. 다시 로그인해주세요.');
+    }
+    throw Exception('Failed to fetch profile: ${response.body}');
+  }
 
   Future<void> logout() async {
     await _apiService.clearToken();
