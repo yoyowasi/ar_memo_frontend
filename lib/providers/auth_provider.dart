@@ -7,19 +7,18 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 });
 
 // 로그인 상태를 관리하는 프로바이더
-final authStateProvider = StateNotifierProvider<AuthStateNotifier, bool>((ref) {
-  final authRepository = ref.watch(authRepositoryProvider);
-  return AuthStateNotifier(authRepository);
+final authStateProvider = NotifierProvider<AuthStateNotifier, bool>(() {
+  return AuthStateNotifier();
 });
 
-class AuthStateNotifier extends StateNotifier<bool> {
-  final AuthRepository _authRepository;
+class AuthStateNotifier extends Notifier<bool> {
+  late AuthRepository _authRepository;
 
-  AuthStateNotifier(this._authRepository) : super(_authRepository.isLoggedIn);
-
-  Future<void> init() async {
-    await _authRepository.init();
-    state = _authRepository.isLoggedIn;
+  @override
+  bool build() {
+    _authRepository = ref.watch(authRepositoryProvider);
+    _authRepository.init();
+    return _authRepository.isLoggedIn;
   }
 
   Future<void> login(String email, String password) async {
