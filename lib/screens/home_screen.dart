@@ -3,6 +3,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/models/memory.dart';
 
+import 'package:ar_memo_frontend/models/memory_summary.dart';
+
 import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
@@ -79,11 +81,13 @@ class HomeScreen extends ConsumerWidget {
                       title: '내 주변 메모',
                       actionLabel: memoryList.isNotEmpty ? '전체보기' : null,
 
+
                       onTap: () {},
                     ),
                     const SizedBox(height: 16),
                     if (memoryList.isEmpty)
                       _EmptyPlaceholder(
+
                         icon: Icons.location_off,
                         title: '주변에 등록된 메모가 없어요',
                         description: '새로운 메모를 추가하거나 다른 지역을 탐색해보세요.',
@@ -107,6 +111,7 @@ class HomeScreen extends ConsumerWidget {
                     const SizedBox(height: 16),
                     if (memoryList.isEmpty)
                       _EmptyPlaceholder(
+
                         icon: Icons.bookmark_border,
                         title: '아직 저장한 메모가 없어요',
                         description: '첫 번째 AR 메모를 등록해보세요.',
