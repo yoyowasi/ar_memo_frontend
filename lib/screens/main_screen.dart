@@ -1,19 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:ar_memo_frontend/screens/group_screen.dart';
+import 'package:ar_memo_frontend/screens/home_screen.dart';
 import 'package:ar_memo_frontend/screens/trip_record_list_screen.dart';
 import 'package:ar_memo_frontend/screens/my_page_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
-
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text('Home Screen'),
-    );
-  }
-}
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
