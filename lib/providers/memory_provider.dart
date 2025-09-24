@@ -1,10 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/models/memory.dart';
+import 'package:ar_memo_frontend/models/memory_summary.dart';
 import 'package:ar_memo_frontend/repositories/memory_repository.dart';
 
 final memoryRepositoryProvider = Provider((ref) => MemoryRepository());
 
 final myMemoriesProvider = FutureProvider<List<Memory>>((ref) async {
   final repository = ref.watch(memoryRepositoryProvider);
-  return repository.getMyMemories();
+  return repository.getMyMemories(limit: 12);
+});
+
+final memorySummaryProvider = FutureProvider<MemorySummary>((ref) async {
+  final repository = ref.watch(memoryRepositoryProvider);
+  return repository.getMemorySummary();
 });
