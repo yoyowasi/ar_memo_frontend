@@ -16,6 +16,7 @@ final memorySummaryProvider = FutureProvider<MemorySummary>((ref) async {
   return repository.getMemorySummary();
 });
 
+
 final memoryDetailProvider = FutureProvider.family<Memory, String>((ref, id) async {
   final repository = ref.watch(memoryRepositoryProvider);
   return repository.getMemoryById(id);
@@ -54,3 +55,4 @@ final mapViewMemoriesProvider = FutureProvider.family<List<Memory>, MapViewSearc
     limit: params.limit,
   );
 });
+

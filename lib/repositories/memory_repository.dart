@@ -7,6 +7,7 @@ import 'package:ar_memo_frontend/services/api_service.dart';
 class MemoryRepository {
   final ApiService _apiService = ApiService();
 
+
   List<dynamic> _unwrapList(dynamic data) {
     if (data is List<dynamic>) {
       return data;
@@ -20,6 +21,7 @@ class MemoryRepository {
     return const [];
   }
 
+
   Future<List<Memory>> getMyMemories({
     int page = 1,
     int limit = 10,
@@ -28,6 +30,7 @@ class MemoryRepository {
     String? groupId,
     String? month,
   }) async {
+
     final response = await _apiService.get(
       '/memories',
       queryParameters: {
@@ -228,11 +231,47 @@ class MemoryRepository {
         rawItems = decoded['items'] ?? decoded['results'] ?? decoded['data'] ?? decoded['memories'];
       }
       final items = _unwrapList(rawItems);
+
       return items
           .whereType<Map<String, dynamic>>()
           .map(Memory.fromJson)
           .toList();
+
+
     }
     throw Exception('Failed to search memories in view: ${response.body}');
+  }
+
+  Future<MemorySummary> getMemorySummary({
+    double? latitude,
+    double? longitude,
+    double? radius,
+  }) async {
+    final queryParameters = <String, String>{};
+    if (latitude != null && longitude != null) {
+      queryParameters['lat'] = latitude.toString();
+      queryParameters['lng'] = longitude.toString();
+    }
+    if (radius != null) {
+      queryParameters['radius'] = radius.toString();
+    }
+
+    final queryString = Uri(queryParameters: queryParameters).query;
+    final endpoint =
+        queryString.isNotEmpty ? '/memories/stats/summary?$queryString' : '/memories/stats/summary';
+
+    final response = await _apiService.get(endpoint);
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final summaryJson = decoded['summary'] is Map<String, dynamic>
+            ? decoded['summary'] as Map<String, dynamic>
+            : decoded;
+        return MemorySummary.fromJson(summaryJson);
+      }
+      throw Exception('Invalid summary response');
+    } else {
+      throw Exception('Failed to load memory summary');
+    }
   }
 }
