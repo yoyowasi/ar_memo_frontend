@@ -20,7 +20,7 @@ class GroupScreen extends ConsumerWidget {
             final group = groups[index];
             return ListTile(
               leading: CircleAvatar(
-                backgroundColor: Color(int.parse(group.color.replaceFirst('#', '0xFF'))),
+                backgroundColor: Color(group.colorValue),
               ),
               title: Text(group.name),
             );
