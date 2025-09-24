@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/models/memory.dart';
-import 'package:ar_memo_frontend/models/memory_summary.dart';
+
 import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
@@ -78,6 +78,7 @@ class HomeScreen extends ConsumerWidget {
                     _SectionHeader(
                       title: '내 주변 메모',
                       actionLabel: memoryList.isNotEmpty ? '전체보기' : null,
+
                       onTap: () {},
                     ),
                     const SizedBox(height: 16),
