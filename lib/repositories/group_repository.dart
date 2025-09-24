@@ -1,8 +1,7 @@
 import 'dart:convert';
 
+import 'package:ar_memo_frontend/models/group.dart';
 import 'package:ar_memo_frontend/services/api_service.dart';
-
-import '../models/group.dart';
 
 class GroupRepository {
   final ApiService _apiService = ApiService();
