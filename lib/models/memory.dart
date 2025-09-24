@@ -37,8 +37,10 @@ class Memory {
 
   factory Memory.fromJson(Map<String, dynamic> json) {
     final location = json['location'] as Map<String, dynamic>?;
+
     final coordinatesRaw =
         location != null ? location['coordinates'] as List<dynamic>? : json['coordinates'] as List<dynamic>?;
+
     final coordinates = coordinatesRaw != null
         ? coordinatesRaw.map((coord) => (coord as num).toDouble()).toList()
         : <double>[];
@@ -61,6 +63,7 @@ class Memory {
     );
   }
 
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -82,4 +85,5 @@ class Memory {
       'updatedAt': updatedAt?.toIso8601String(),
     }..removeWhere((key, value) => value == null);
   }
+
 }
