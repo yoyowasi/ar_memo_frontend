@@ -18,15 +18,13 @@ class HomeScreen extends ConsumerWidget {
       MaterialPageRoute(builder: (context) => const CreateTripRecordScreen()),
     ).then((value) {
       if (value == true) {
-        ref.read(tripRecordsProvider.notifier).fetchTripRecords();
+        ref.invalidate(tripRecordsProvider);
       }
     });
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // AuthRepository에서 AuthKey 가져오기
-    AuthRepository.initialize(appKey: 'd9a28c7813a47e45be144b0df7c27ccf');
     final tripRecordsAsync = ref.watch(tripRecordsProvider);
 
     return Scaffold(

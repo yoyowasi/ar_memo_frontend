@@ -33,7 +33,7 @@ class TripRecordListScreen extends ConsumerWidget {
                 child: Text('첫 여행 기록을 추가해보세요!', style: bodyText1));
           }
           return RefreshIndicator(
-            onRefresh: () => ref.read(tripRecordsProvider.notifier).fetchTripRecords(),
+            onRefresh: () => ref.refresh(tripRecordsProvider.future),
             child: GridView.builder(
               padding: const EdgeInsets.all(16),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

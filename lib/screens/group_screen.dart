@@ -84,7 +84,7 @@ class GroupScreen extends ConsumerWidget {
                     textAlign: TextAlign.center, style: bodyText1));
           }
           return RefreshIndicator(
-            onRefresh: () => ref.read(myGroupsProvider.notifier).fetchMyGroups(),
+            onRefresh: () => ref.refresh(myGroupsProvider.future),
             child: ListView.builder(
               padding: const EdgeInsets.all(8),
               itemCount: groups.length,
