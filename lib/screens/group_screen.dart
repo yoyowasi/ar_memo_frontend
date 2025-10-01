@@ -34,14 +34,14 @@ class GroupScreen extends ConsumerWidget {
               onPressed: () async {
                 final name = nameController.text;
                 if (name.isNotEmpty) {
-                  // 비동기 작업 전에 context를 사용하는 변수를 미리 선언합니다.
                   final navigator = Navigator.of(context);
                   final messenger = ScaffoldMessenger.of(context);
 
                   try {
+                    // 수정된 Provider 호출 방식
                     await ref
                         .read(myGroupsProvider.notifier)
-                        .createGroup(name);
+                        .createGroup(name: name);
                     navigator.pop();
                   } catch (e) {
                     navigator.pop();
@@ -84,8 +84,7 @@ class GroupScreen extends ConsumerWidget {
                     textAlign: TextAlign.center, style: bodyText1));
           }
           return RefreshIndicator(
-            onRefresh: () =>
-                ref.read(myGroupsProvider.notifier).fetchMyGroups(),
+            onRefresh: () => ref.read(myGroupsProvider.notifier).fetchMyGroups(),
             child: ListView.builder(
               padding: const EdgeInsets.all(8),
               itemCount: groups.length,
@@ -111,7 +110,6 @@ class GroupScreen extends ConsumerWidget {
                     trailing:
                     const Icon(Icons.chevron_right, color: subTextColor),
                     onTap: () {
-                      // 그룹 상세 페이지로 이동
                       Navigator.push(
                         context,
                         MaterialPageRoute(

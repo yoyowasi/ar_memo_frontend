@@ -15,8 +15,6 @@ class GroupDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final groupAsync = ref.watch(groupDetailProvider(groupId));
     final memoriesAsync = ref.watch(groupMemoriesProvider(groupId));
-    // JavaScript 키 초기화
-    AuthRepository.initialize(appKey: 'd9a28c7813a47e45be144b0df7c27ccf');
 
     return Scaffold(
       body: Stack(
@@ -38,13 +36,17 @@ class GroupDetailScreen extends ConsumerWidget {
                 data: (group) => Text(group.name,
                     style: heading2.copyWith(
                         color: Colors.white,
-                        shadows: const [Shadow(blurRadius: 2, color: Colors.black54)])),
+                        shadows: const [
+                          Shadow(blurRadius: 2, color: Colors.black54)
+                        ])),
                 loading: () => const SizedBox.shrink(),
-                error: (_, __) => const Text('오류', style: TextStyle(color: Colors.white)),
+                error: (_, __) =>
+                const Text('오류', style: TextStyle(color: Colors.white)),
               ),
               actions: [
                 IconButton(icon: const Icon(Icons.search), onPressed: () {}),
-                IconButton(icon: const Icon(Icons.people_outline), onPressed: () {}),
+                IconButton(
+                    icon: const Icon(Icons.people_outline), onPressed: () {}),
                 IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
               ],
             ),
@@ -55,7 +57,8 @@ class GroupDetailScreen extends ConsumerWidget {
             initialChildSize: 0.3,
             minChildSize: 0.15,
             maxChildSize: 0.8,
-            builder: (BuildContext context, ScrollController scrollController) {
+            builder:
+                (BuildContext context, ScrollController scrollController) {
               return Container(
                 decoration: const BoxDecoration(
                   color: Colors.white,
@@ -63,7 +66,9 @@ class GroupDetailScreen extends ConsumerWidget {
                     topLeft: Radius.circular(20),
                     topRight: Radius.circular(20),
                   ),
-                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10.0)],
+                  boxShadow: [
+                    BoxShadow(color: Colors.black26, blurRadius: 10.0)
+                  ],
                 ),
                 child: Column(
                   children: [
@@ -80,7 +85,8 @@ class GroupDetailScreen extends ConsumerWidget {
                       child: memoriesAsync.when(
                         data: (memories) {
                           if (memories.isEmpty) {
-                            return const Center(child: Text("이 그룹에는 아직 기록이 없습니다."));
+                            return const Center(
+                                child: Text("이 그룹에는 아직 기록이 없습니다."));
                           }
                           return ListView.builder(
                             controller: scrollController,
@@ -91,11 +97,21 @@ class GroupDetailScreen extends ConsumerWidget {
                                 leading: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
                                   child: (memory.thumbUrl?.isNotEmpty ?? false)
-                                      ? Image.network(memory.thumbUrl!, width: 56, height: 56, fit: BoxFit.cover)
-                                      : Container(width: 56, height: 56, color: mutedSurfaceColor, child: const Icon(Icons.image_not_supported, color: subTextColor)),
+                                      ? Image.network(memory.thumbUrl!,
+                                      width: 56,
+                                      height: 56,
+                                      fit: BoxFit.cover)
+                                      : Container(
+                                      width: 56,
+                                      height: 56,
+                                      color: mutedSurfaceColor,
+                                      child: const Icon(
+                                          Icons.image_not_supported,
+                                          color: subTextColor)),
                                 ),
                                 title: Text(memory.text ?? '텍스트 없음'),
-                                subtitle: Text('작성자: ${memory.userId}'), // TODO: 사용자 이름으로 변경
+                                subtitle:
+                                Text('작성자: ${memory.userId}'), // TODO: 사용자 이름으로 변경
                                 onTap: () {
                                   // TODO: 메모 상세 페이지로 이동
                                 },
@@ -103,8 +119,11 @@ class GroupDetailScreen extends ConsumerWidget {
                             },
                           );
                         },
-                        loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (err, stack) => Center(child: Text('메모를 불러오는 데 실패했습니다.\n$err')),
+                        loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                        error: (err, stack) => Center(
+                            child:
+                            Text('메모를 불러오는 데 실패했습니다.\n$err')),
                       ),
                     ),
                   ],

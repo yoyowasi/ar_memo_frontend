@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:ar_memo_frontend/repositories/auth_repository.dart';
+import '../repositories/auth_repository.dart';
 import 'package:ar_memo_frontend/providers/user_provider.dart';
 
 // AuthRepository 인스턴스를 제공하는 프로바이더
@@ -8,7 +8,8 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 });
 
 // 로그인 상태를 관리하는 프로바이더
-final authStateProvider = NotifierProvider<AuthStateNotifier, bool>(AuthStateNotifier.new);
+final authStateProvider =
+NotifierProvider<AuthStateNotifier, bool>(AuthStateNotifier.new);
 
 class AuthStateNotifier extends Notifier<bool> {
   late AuthRepository _authRepository;
@@ -22,7 +23,7 @@ class AuthStateNotifier extends Notifier<bool> {
 
   Future<void> _initialize() async {
     await _authRepository.init();
-    // Notifier가 unmount되지 않는 이상 이 코드는 안전합니다. 'mounted' 체크 불필요.
+    // Notifier Provider는 mounted 여부를 확인할 필요가 없음
     state = _authRepository.isLoggedIn;
   }
 
