@@ -1,8 +1,9 @@
+// lib/screens/my_page_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/providers/auth_provider.dart';
 import 'package:ar_memo_frontend/providers/user_provider.dart';
-import 'package:ar_memo_frontend/screens/group_screen.dart'; // 그룹 화면 import
+import 'package:ar_memo_frontend/screens/main_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 
@@ -73,7 +74,7 @@ class MyPageScreen extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('프로필 정보를 불러오지 못했습니다.\n${error.toString()}'),
+              const Text('프로필 정보를 불러오지 못했습니다.\n잠시 후 다시 시도해주세요.'),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => ref.invalidate(currentUserProvider),
@@ -94,10 +95,8 @@ class MyPageScreen extends ConsumerWidget {
           icon: Icons.group_outlined,
           title: '그룹 관리',
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const GroupScreen()),
-            );
+            // MainScreen의 BottomNavigationBar 인덱스를 변경하여 화면 전환
+            DefaultTabController.of(context)?.animateTo(1);
           },
         ),
         _buildMenuListItem(

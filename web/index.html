@@ -4,18 +4,15 @@
     <title>ar_memo_frontend</title>
     <link rel="manifest" href="manifest.json">
 
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=d9a28c7813a47e45be144b0df7c27ccf"></script>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=d9a28c7813a47e45be144b0df7c27ccf&libraries=services,clusterer,drawing"></script>
 </head>
 <body>
-<!-- This script installs service_worker.js to provide PWA functionality to
-     application. For more information, see:
-     https://developers.google.com/web/fundamentals/primers/service-workers -->
 <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('flutter-first-frame', function () {
-      navigator.serviceWorker.register('flutter_service_worker.js');
-    });
-  }
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('flutter-first-frame', function () {
+            navigator.serviceWorker.register('flutter_service_worker.js');
+        });
+    }
 </script>
 <script src="flutter_bootstrap.js" async></script>
 </body>

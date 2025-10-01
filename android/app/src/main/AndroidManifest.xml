@@ -3,6 +3,11 @@
             android:usesCleartextTraffic="true"
             android:label="ar_memo_frontend"
             android:icon="@mipmap/ic_launcher">
+
+        <meta-data
+                android:name="io.flutter.embedding.android.RenderMode"
+                android:value="surface" />
+
         <activity
                 android:name=".MainActivity"
                 android:exported="true"
@@ -20,10 +25,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-
-        <meta-data
-                android:name="com.kakao.sdk.AppKey"
-                android:value="14ceae9e736fe6c0751bf4a256e77587" />
 
         <meta-data
                 android:name="flutterEmbedding"
