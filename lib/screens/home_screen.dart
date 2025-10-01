@@ -25,8 +25,6 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // AuthRepository에서 AuthKey 가져오기
-    AuthRepository.initialize(appKey: 'd9a28c7813a47e45be144b0df7c27ccf');
     final tripRecordsAsync = ref.watch(tripRecordsProvider);
 
     return Scaffold(

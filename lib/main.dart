@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,8 +15,14 @@ void main() async {
   await dotenv.load(fileName: ".env");
   await initializeDateFormatting('ko_KR', null);
 
-  // 카카오맵 SDK 초기화 (이것이 올바른 코드)
-  AuthRepository.initialize(appKey: dotenv.env['KAKAO_MAP_JAVASCRIPT_KEY'] ?? '');
+  // 카카오맵 SDK 초기화 (웹/모바일 플랫폼에 따라 다른 키 사용)
+  final appKey = kIsWeb
+      ? dotenv.env['KAKAO_MAP_JAVASCRIPT_KEY']
+      : (Platform.isAndroid || Platform.isIOS)
+          ? dotenv.env['KAKAO_MAP_NATIVE_APP_KEY']
+          : dotenv.env['KAKAO_MAP_JAVASCRIPT_KEY'];
+
+  AuthRepository.initialize(appKey: appKey ?? '');
 
   runApp(
     const ProviderScope(
