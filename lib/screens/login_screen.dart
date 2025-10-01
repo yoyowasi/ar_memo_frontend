@@ -109,45 +109,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   child: const Text('로그인', style: buttonText),
                 ),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  icon: Image.asset('assets/kakao_icon.png', height: 24), // 카카오 아이콘 추가 필요
-                  label: const Text('카카오로 시작하기', style: TextStyle(color: Colors.black87)),
-                  onPressed: () {
-                    // TODO: 카카오 로그인 로직 구현
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kakaoColor,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                // 카카오 로그인 버튼이 제거되었습니다.
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton(
+                        onPressed: () {},
+                        child: const Text('아이디 찾기',
+                            style: TextStyle(color: subTextColor)),
+                      ),
+                      const Text('|', style: TextStyle(color: subTextColor)),
+                      TextButton(
+                        onPressed: () {},
+                        child: const Text('비밀번호 찾기',
+                            style: TextStyle(color: subTextColor)),
+                      ),
+                      const Text('|', style: TextStyle(color: subTextColor)),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const RegisterScreen()),
+                          );
+                        },
+                        child: const Text('회원가입',
+                            style: TextStyle(color: subTextColor)),
+                      ),
+                    ],
                   ),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text('아이디 찾기', style: TextStyle(color: subTextColor)),
-                    ),
-                    const Text('|', style: TextStyle(color: subTextColor)),
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text('비밀번호 찾기', style: TextStyle(color: subTextColor)),
-                    ),
-                    const Text('|', style: TextStyle(color: subTextColor)),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const RegisterScreen()),
-                        );
-                      },
-                      child: const Text('회원가입', style: TextStyle(color: subTextColor)),
-                    ),
-                  ],
                 ),
                 const Spacer(flex: 2),
               ],

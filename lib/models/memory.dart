@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 
 class Memory {
   final String id;

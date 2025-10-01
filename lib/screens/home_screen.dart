@@ -9,7 +9,6 @@ import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 
-/// 홈 화면을 구성하는 메인 위젯
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
