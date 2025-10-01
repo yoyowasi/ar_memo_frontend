@@ -45,9 +45,39 @@ class TripRecordsNotifier extends StateNotifier<AsyncValue<List<TripRecord>>> {
       );
       await fetchTripRecords();
     } catch (e) {
-      print('Failed to add trip record: $e');
-      // Re-throw the error to be caught in the UI
-      throw Exception('Failed to add trip record');
+      rethrow;
+    }
+  }
+
+  Future<void> updateTripRecord({
+    required String id,
+    String? title,
+    DateTime? date,
+    String? content,
+    String? groupId,
+    List<String>? photoUrls,
+  }) async {
+    try {
+      await _repository.updateTripRecord(
+        id: id,
+        title: title,
+        date: date,
+        content: content,
+        groupId: groupId,
+        photoUrls: photoUrls,
+      );
+      await fetchTripRecords();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> deleteTripRecord(String id) async {
+    try {
+      await _repository.deleteTripRecord(id);
+      await fetchTripRecords();
+    } catch (e) {
+      rethrow;
     }
   }
 }

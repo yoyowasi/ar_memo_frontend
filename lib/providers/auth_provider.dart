@@ -1,5 +1,3 @@
-// lib/providers/auth_provider.dart
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/repositories/auth_repository.dart';
 import 'package:ar_memo_frontend/providers/user_provider.dart';
@@ -24,7 +22,7 @@ class AuthStateNotifier extends Notifier<bool> {
 
   Future<void> _initialize() async {
     await _authRepository.init();
-    // 'if (mounted)'를 제거하고 바로 상태를 업데이트합니다.
+    // Notifier가 unmount되지 않는 이상 이 코드는 안전합니다. 'mounted' 체크 불필요.
     state = _authRepository.isLoggedIn;
   }
 

@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:ar_memo_frontend/models/memory.dart';
 import 'package:ar_memo_frontend/models/memory_summary.dart';
 import 'package:ar_memo_frontend/repositories/memory_repository.dart';
@@ -25,6 +24,14 @@ final memoryDetailProvider = FutureProvider.family<Memory, String>((ref, id) asy
   return repository.getMemoryById(id);
 });
 
+// 그룹 메모를 위한 새로운 Provider 추가
+final groupMemoriesProvider =
+FutureProvider.family<List<Memory>, String>((ref, groupId) {
+  final repository = ref.watch(memoryRepositoryProvider);
+  return repository.getGroupMemories(groupId);
+});
+
+
 // 주변 Memory 검색을 위한 파라미터 타입을 정의
 typedef NearbySearchParams = ({double latitude, double longitude, double radius});
 
@@ -40,13 +47,13 @@ final nearbyMemoriesProvider = FutureProvider.family<List<Memory>, NearbySearchP
 
 // 지도 뷰 내의 Memory 검색을 위한 파라미터 타입을 정의
 typedef MapViewSearchParams = ({
-  double swLat,
-  double swLng,
-  double neLat,
-  double neLng,
-  double centerLat,
-  double centerLng,
-  int limit,
+double swLat,
+double swLng,
+double neLat,
+double neLng,
+double centerLat,
+double centerLng,
+int limit,
 });
 
 // 현재 지도 화면 영역 내의 Memory 목록을 검색하는 Provider

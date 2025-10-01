@@ -141,14 +141,14 @@ class MemoryRepository {
 
   /// 기존 Memory를 수정하는 메서드
   Future<Memory> updateMemory(
-    String id, {
-    String? text,
-    List<String>? tags,
-    bool? favorite,
-    String? visibility,
-    String? groupId,
-    Map<String, dynamic>? anchor,
-  }) async {
+      String id, {
+        String? text,
+        List<String>? tags,
+        bool? favorite,
+        String? visibility,
+        String? groupId,
+        Map<String, dynamic>? anchor,
+      }) async {
     final response = await _apiService.put(
       '/memories/$id',
       data: {
@@ -231,5 +231,16 @@ class MemoryRepository {
       return items.whereType<Map<String, dynamic>>().map(Memory.fromJson).toList();
     }
     throw Exception('Failed to search memories in view: ${response.body}');
+  }
+
+  /// 그룹 ID로 메모 목록을 가져오는 메소드
+  Future<List<Memory>> getGroupMemories(String groupId) async {
+    final response = await _apiService.get('/groups/$groupId/memories');
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      final items = _unwrapList(decoded);
+      return items.whereType<Map<String, dynamic>>().map(Memory.fromJson).toList();
+    }
+    throw Exception('Failed to load group memories: ${response.body}');
   }
 }
