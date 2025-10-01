@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/providers/auth_provider.dart';
 import 'package:ar_memo_frontend/providers/user_provider.dart';
-import 'package:ar_memo_frontend/screens/main_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 
@@ -96,7 +95,7 @@ class MyPageScreen extends ConsumerWidget {
           title: '그룹 관리',
           onTap: () {
             // MainScreen의 BottomNavigationBar 인덱스를 변경하여 화면 전환
-            DefaultTabController.of(context)?.animateTo(1);
+            DefaultTabController.of(context).animateTo(1);
           },
         ),
         _buildMenuListItem(
@@ -104,6 +103,7 @@ class MyPageScreen extends ConsumerWidget {
           title: '알림 설정',
           onTap: () {},
         ),
+
         _buildMenuListItem(
           icon: Icons.help_outline,
           title: '고객센터',

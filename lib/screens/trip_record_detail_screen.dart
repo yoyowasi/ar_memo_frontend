@@ -139,7 +139,7 @@ class TripRecordDetailScreen extends ConsumerWidget {
                             child: Image.network(url),
                           ),
                         );
-                      }).toList(),
+                      }),
                   ],
                 ),
               ),

@@ -40,3 +40,12 @@ android {
 flutter {
     source = "../.."
 }
+
+configurations.all {
+    resolutionStrategy {
+        force("io.grpc:grpc-okhttp:1.41.0")
+        force("io.grpc:grpc-stub:1.41.0")
+        force("io.grpc:grpc-api:1.41.0")
+        force("io.grpc:grpc-android:1.41.0")
+    }
+}
