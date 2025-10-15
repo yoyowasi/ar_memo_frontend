@@ -16,9 +16,16 @@ class _AuthGateScreenState extends ConsumerState<AuthGateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLoggedIn = ref.watch(authStateProvider);
+    final authState = ref.watch(authStateProvider);
 
-    // 로그인 상태에 따라 MainScreen 또는 LoginScreen을 보여줍니다.
-    return isLoggedIn ? const MainScreen() : const LoginScreen();
+    return authState.when(
+      data: (isLoggedIn) => isLoggedIn ? const MainScreen() : const LoginScreen(),
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (err, stack) => Scaffold(
+        body: Center(child: Text('An error occurred: $err')),
+      ),
+    );
   }
 }

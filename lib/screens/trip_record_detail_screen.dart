@@ -1,18 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
-import 'package:ar_memo_frontend/screens/create_trip_record_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
-
-// Provider to fetch a single trip record
-final tripRecordDetailProvider =
-FutureProvider.family<TripRecord, String>((ref, id) {
-  final repo = ref.watch(tripRecordRepositoryProvider);
-  return repo.getTripRecord(id);
-});
+import 'package:ar_memo_frontend/screens/create_trip_record_screen.dart';
 
 class TripRecordDetailScreen extends ConsumerWidget {
   final String recordId;

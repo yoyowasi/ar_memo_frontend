@@ -38,10 +38,9 @@ class GroupScreen extends ConsumerWidget {
                   final messenger = ScaffoldMessenger.of(context);
 
                   try {
-                    // 수정된 Provider 호출 방식
-                    await ref
-                        .read(myGroupsProvider.notifier)
-                        .createGroup(name: name);
+                    // Call repository directly and invalidate the provider
+                    await ref.read(groupRepositoryProvider).createGroup(name: name);
+                    ref.invalidate(myGroupsProvider);
                     navigator.pop();
                   } catch (e) {
                     navigator.pop();
@@ -84,7 +83,10 @@ class GroupScreen extends ConsumerWidget {
                     textAlign: TextAlign.center, style: bodyText1));
           }
           return RefreshIndicator(
-            onRefresh: () => ref.refresh(myGroupsProvider.future),
+            onRefresh: () {
+              ref.invalidate(myGroupsProvider);
+              return ref.read(myGroupsProvider.future);
+            },
             child: ListView.builder(
               padding: const EdgeInsets.all(8),
               itemCount: groups.length,

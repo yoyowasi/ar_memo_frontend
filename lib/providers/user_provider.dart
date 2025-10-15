@@ -7,9 +7,10 @@ part 'user_provider.g.dart';
 @riverpod
 Future<User> currentUser(Ref ref) async {
   final repository = ref.watch(authRepositoryProvider);
-  final isLoggedIn = ref.watch(authStateProvider);
+  final authState = ref.watch(authStateProvider);
 
-  if (isLoggedIn) {
+  // Only proceed when the auth state is successfully loaded and is true.
+  if (authState.value == true) {
     final data = await repository.fetchCurrentUser();
     final userJson = data['user'] is Map<String, dynamic> ? data['user'] as Map<String, dynamic> : data;
     return User.fromJson(userJson);

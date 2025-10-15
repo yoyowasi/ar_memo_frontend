@@ -14,3 +14,9 @@ Future<List<Group>> myGroups(Ref ref) async {
   final repository = ref.watch(groupRepositoryProvider);
   return repository.getMyGroups();
 }
+
+@riverpod
+Future<Group> groupDetail(Ref ref, String id) async {
+  final repository = ref.watch(groupRepositoryProvider);
+  return repository.getGroupDetail(id);
+}
