@@ -1,6 +1,6 @@
-// lib/providers/auth_provider.dart
+
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:ar_memo_frontend/repositories/auth_repository.dart';
+import '../repositories/auth_repository.dart';
 import 'package:ar_memo_frontend/providers/user_provider.dart';
 
 part 'auth_provider.g.dart';
@@ -22,9 +22,9 @@ class AuthState extends _$AuthState {
     return authRepository.isLoggedIn;
   }
 
-  Future<void> _initialize(AuthRepository authRepository) async {
-    await authRepository.init();
-    state = authRepository.isLoggedIn;
+  Future<void> _initialize() async {
+    await _authRepository.init();
+    state = _authRepository.isLoggedIn;
   }
 
   Future<void> login(String email, String password) async {

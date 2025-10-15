@@ -2,39 +2,56 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-
-import 'package:ar_memo_frontend/models/upload_photo_result.dart';
+import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 
 class CreateTripRecordScreen extends ConsumerStatefulWidget {
-  const CreateTripRecordScreen({super.key});
+  final TripRecord? recordToEdit;
+  const CreateTripRecordScreen({super.key, this.recordToEdit});
 
   @override
-  ConsumerState<CreateTripRecordScreen> createState() => _CreateTripRecordScreenState();
+  ConsumerState<CreateTripRecordScreen> createState() =>
+      _CreateTripRecordScreenState();
 }
 
-class _CreateTripRecordScreenState extends ConsumerState<CreateTripRecordScreen> {
+class _CreateTripRecordScreenState
+    extends ConsumerState<CreateTripRecordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   DateTime? _selectedDate;
   bool _isLoading = false;
   bool _isUploading = false;
-  final List<UploadPhotoResult> _photos = [];
+  final List<String> _photoUrls = [];
+
+  bool get _isEditMode => widget.recordToEdit != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditMode) {
+      final record = widget.recordToEdit!;
+      _titleController.text = record.title;
+      _contentController.text = record.content;
+      _selectedDate = record.date;
+      _photoUrls.addAll(record.photoUrls);
+    }
+  }
 
   Future<void> _pickAndUploadImage() async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
-    if (picked == null) return;
+    final picked =
+    await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+    if (picked == null || !mounted) return;
 
     setState(() => _isUploading = true);
     try {
       final repository = ref.read(uploadRepositoryProvider);
       final result = await repository.uploadPhoto(picked);
-      setState(() => _photos.add(result));
+      setState(() => _photoUrls.add(result.url));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -48,25 +65,40 @@ class _CreateTripRecordScreenState extends ConsumerState<CreateTripRecordScreen>
     }
   }
 
-  Future<void> _createTripRecord() async {
+  Future<void> _submitTripRecord() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedDate == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('날짜를 선택해주세요.')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('날짜를 선택해주세요.')));
         return;
       }
       setState(() => _isLoading = true);
+
+      // 비동기 작업 전 context 사용 변수 선언
+      final navigator = Navigator.of(context);
+      final messenger = ScaffoldMessenger.of(context);
+
       try {
-        await ref.read(tripRecordsProvider.notifier).addTripRecord(
-          title: _titleController.text,
-          content: _contentController.text,
-          date: _selectedDate!,
-          photoUrls: _photos.map((photo) => photo.url).toList(),
-        );
-        if (mounted) Navigator.pop(context, true);
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('생성 실패: ${e.toString()}')));
+        final notifier = ref.read(tripRecordsProvider.notifier);
+        if (_isEditMode) {
+          await notifier.updateTripRecord(
+            id: widget.recordToEdit!.id,
+            title: _titleController.text,
+            content: _contentController.text,
+            date: _selectedDate!,
+            photoUrls: _photoUrls,
+          );
+        } else {
+          await notifier.addTripRecord(
+            title: _titleController.text,
+            content: _contentController.text,
+            date: _selectedDate!,
+            photoUrls: _photoUrls,
+          );
         }
+        navigator.pop(true);
+      } catch (e) {
+        messenger.showSnackBar(SnackBar(content: Text('저장 실패: ${e.toString()}')));
       } finally {
         if (mounted) setState(() => _isLoading = false);
       }
@@ -84,7 +116,7 @@ class _CreateTripRecordScreenState extends ConsumerState<CreateTripRecordScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('일기 쓰기', style: heading2),
+        title: Text(_isEditMode ? '일기 수정' : '일기 쓰기', style: heading2),
         backgroundColor: Colors.white,
         elevation: 1,
       ),
@@ -93,7 +125,6 @@ class _CreateTripRecordScreenState extends ConsumerState<CreateTripRecordScreen>
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-            // 이미지 추가 부분 (피그마 디자인)
             Container(
               height: 200,
               decoration: BoxDecoration(
@@ -101,8 +132,9 @@ class _CreateTripRecordScreenState extends ConsumerState<CreateTripRecordScreen>
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  if (_photos.isEmpty)
+                  if (_photoUrls.isEmpty)
                     InkWell(
                       onTap: _isUploading ? null : _pickAndUploadImage,
                       child: Column(
@@ -111,9 +143,11 @@ class _CreateTripRecordScreenState extends ConsumerState<CreateTripRecordScreen>
                           if (_isUploading)
                             const CircularProgressIndicator()
                           else
-                            const Icon(Icons.add_a_photo_outlined, size: 40, color: subTextColor),
+                            const Icon(Icons.add_a_photo_outlined,
+                                size: 40, color: subTextColor),
                           const SizedBox(height: 8),
-                          Text(_isUploading ? '업로드 중...' : '사진 추가하기', style: bodyText2),
+                          Text(_isUploading ? '업로드 중...' : '사진 추가하기',
+                              style: bodyText2),
                         ],
                       ),
                     )
@@ -124,13 +158,13 @@ class _CreateTripRecordScreenState extends ConsumerState<CreateTripRecordScreen>
                         scrollDirection: Axis.horizontal,
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         itemBuilder: (context, index) {
-                          final photo = _photos[index];
+                          final photoUrl = _photoUrls[index];
                           return Stack(
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: Image.network(
-                                  photo.thumbUrl ?? photo.url,
+                                  photoUrl,
                                   width: 160,
                                   height: 160,
                                   fit: BoxFit.cover,
@@ -140,14 +174,16 @@ class _CreateTripRecordScreenState extends ConsumerState<CreateTripRecordScreen>
                                 top: 8,
                                 right: 8,
                                 child: InkWell(
-                                  onTap: () => setState(() => _photos.removeAt(index)),
+                                  onTap: () =>
+                                      setState(() => _photoUrls.removeAt(index)),
                                   child: Container(
                                     decoration: const BoxDecoration(
                                       shape: BoxShape.circle,
                                       color: Colors.black54,
                                     ),
                                     padding: const EdgeInsets.all(4),
-                                    child: const Icon(Icons.close, size: 16, color: Colors.white),
+                                    child: const Icon(Icons.close,
+                                        size: 16, color: Colors.white),
                                   ),
                                 ),
                               ),
@@ -155,7 +191,7 @@ class _CreateTripRecordScreenState extends ConsumerState<CreateTripRecordScreen>
                           );
                         },
                         separatorBuilder: (_, __) => const SizedBox(width: 12),
-                        itemCount: _photos.length,
+                        itemCount: _photoUrls.length,
                       ),
                     ),
                   Positioned(
@@ -165,16 +201,19 @@ class _CreateTripRecordScreenState extends ConsumerState<CreateTripRecordScreen>
                       onPressed: _isUploading ? null : _pickAndUploadImage,
                       icon: _isUploading
                           ? const SizedBox(
-                              height: 16,
-                              width: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
+                        height: 16,
+                        width: 16,
+                        child:
+                        CircularProgressIndicator(strokeWidth: 2),
+                      )
                           : const Icon(Icons.add_a_photo_outlined, size: 16),
                       label: Text(_isUploading ? '업로드 중' : '추가'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black.withOpacity(0.6),
+                        // withOpacity 경고 수정
+                        backgroundColor: const Color.fromRGBO(0, 0, 0, 0.6),
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
                         textStyle: bodyText2.copyWith(color: Colors.white),
                       ),
                     ),
@@ -185,7 +224,8 @@ class _CreateTripRecordScreenState extends ConsumerState<CreateTripRecordScreen>
             const SizedBox(height: 24),
             TextFormField(
               controller: _titleController,
-              decoration: const InputDecoration(labelText: '제목', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: '제목', border: OutlineInputBorder()),
               validator: (v) => (v == null || v.isEmpty) ? '제목을 입력하세요' : null,
             ),
             const SizedBox(height: 16),
@@ -193,16 +233,19 @@ class _CreateTripRecordScreenState extends ConsumerState<CreateTripRecordScreen>
               onTap: () async {
                 final pickedDate = await showDatePicker(
                   context: context,
-                  initialDate: DateTime.now(),
+                  initialDate: _selectedDate ?? DateTime.now(),
                   firstDate: DateTime(2000),
                   lastDate: DateTime.now(),
                 );
                 if (pickedDate != null) setState(() => _selectedDate = pickedDate);
               },
               child: InputDecorator(
-                decoration: const InputDecoration(labelText: '날짜', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: '날짜', border: OutlineInputBorder()),
                 child: Text(
-                  _selectedDate == null ? '날짜를 선택하세요' : DateFormat('yyyy.MM.dd').format(_selectedDate!),
+                  _selectedDate == null
+                      ? '날짜를 선택하세요'
+                      : DateFormat('yyyy.MM.dd').format(_selectedDate!),
                   style: bodyText1.copyWith(fontSize: 16),
                 ),
               ),
@@ -221,13 +264,15 @@ class _CreateTripRecordScreenState extends ConsumerState<CreateTripRecordScreen>
             _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : ElevatedButton(
-              onPressed: _createTripRecord,
+              onPressed: _submitTripRecord,
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryColor,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
-              child: const Text('작성 완료', style: buttonText),
+              child: Text(_isEditMode ? '수정 완료' : '작성 완료',
+                  style: buttonText),
             ),
           ],
         ),
