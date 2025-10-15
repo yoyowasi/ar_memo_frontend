@@ -1,14 +1,19 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:ar_memo_frontend/models/user.dart';
-import 'package:ar_memo_frontend/repositories/auth_repository.dart';
+import 'package:ar_memo_frontend/providers/auth_provider.dart';
 
-final currentUserProvider = FutureProvider<User>((ref) async {
-  final repository = AuthRepository();
-  if (!repository.isLoggedIn) {
-    await repository.init();
+part 'user_provider.g.dart';
+
+@riverpod
+Future<User> currentUser(Ref ref) async {
+  final repository = ref.watch(authRepositoryProvider);
+  final isLoggedIn = ref.watch(authStateProvider);
+
+  if (isLoggedIn) {
+    final data = await repository.fetchCurrentUser();
+    final userJson = data['user'] is Map<String, dynamic> ? data['user'] as Map<String, dynamic> : data;
+    return User.fromJson(userJson);
+  } else {
+    throw Exception('User not logged in');
   }
-  final data = await repository.fetchCurrentUser();
-  final userJson = data['user'] is Map<String, dynamic> ? data['user'] as Map<String, dynamic> : data;
-  return User.fromJson(userJson);
-});
+}

@@ -20,7 +20,7 @@ dependencies:
   mime: ^1.0.5
 
   # 상태 관리
-  flutter_riverpod: ^2.5.1
+  flutter_riverpod: ^3.0.0
 
   # 데이터 저장
   shared_preferences: ^2.2.3
@@ -32,11 +32,14 @@ dependencies:
   intl: ^0.19.0
   image_picker: ^1.1.2
   kakao_map_plugin: ^0.3.2
+  riverpod_annotation: ^3.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  build_runner: ^2.7.1
+  riverpod_generator: ^3.0.0
 
 flutter:
   uses-material-design: true

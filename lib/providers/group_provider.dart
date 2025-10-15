@@ -1,10 +1,16 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:ar_memo_frontend/models/group.dart';
 import 'package:ar_memo_frontend/repositories/group_repository.dart';
 
-final groupRepositoryProvider = Provider((ref) => GroupRepository());
+part 'group_provider.g.dart';
 
-final myGroupsProvider = FutureProvider<List<Group>>((ref) async {
+@riverpod
+GroupRepository groupRepository(Ref ref) {
+  return GroupRepository();
+}
+
+@riverpod
+Future<List<Group>> myGroups(Ref ref) async {
   final repository = ref.watch(groupRepositoryProvider);
   return repository.getMyGroups();
-});
+}
