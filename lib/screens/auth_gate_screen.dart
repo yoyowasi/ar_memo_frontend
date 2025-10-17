@@ -2,20 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/providers/auth_provider.dart';
 import 'package:ar_memo_frontend/screens/login_screen.dart';
-import 'package:ar_memo_frontend/screens/main_screen.dart'; // HomeScreen 대신 MainScreen
+import 'package:ar_memo_frontend/screens/main_screen.dart';
 
-class AuthGateScreen extends ConsumerStatefulWidget {
+class AuthGateScreen extends ConsumerWidget {
   const AuthGateScreen({super.key});
 
   @override
-  ConsumerState<AuthGateScreen> createState() => _AuthGateScreenState();
-}
-
-class _AuthGateScreenState extends ConsumerState<AuthGateScreen> {
-  
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authStateProvider);
 
     return authState.when(
