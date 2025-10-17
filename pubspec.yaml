@@ -33,9 +33,9 @@ dependencies:
   intl: ^0.19.0
   image_picker: ^1.1.2
   kakao_map_plugin: ^0.3.7
-  ar_flutter_plugin: ^0.7.3
+  ar_flutter_plugin_updated: ^0.0.1
   vector_math: ^2.1.4
-  permission_handler: ^11.0.0
+  permission_handler: ^11.3.1
   webview_flutter: ^4.7.0
 
 dev_dependencies:

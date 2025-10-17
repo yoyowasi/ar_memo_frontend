@@ -116,7 +116,7 @@ class HomeScreen extends ConsumerWidget {
           DraggableScrollableSheet(
             initialChildSize: 0.3,
             minChildSize: 0.15,
-            maxChildSize: 0.8,
+            maxChildSize: 1.0,
             builder: (BuildContext context, ScrollController scrollController) {
               return Container(
                 decoration: const BoxDecoration(
