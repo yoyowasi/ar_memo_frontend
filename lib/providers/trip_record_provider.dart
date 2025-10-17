@@ -13,11 +13,11 @@ TripRecordRepository tripRecordRepository(Ref ref) {
 class TripRecords extends _$TripRecords {
   @override
   Future<List<TripRecord>> build() async {
-    // build method fetches the initial data
+    // build 메서드는 초기 데이터를 가져옵니다.
     return ref.watch(tripRecordRepositoryProvider).getTripRecords();
   }
 
-  // Method to add a record
+  // 기록을 추가하는 메서드
   Future<void> addTripRecord({
     required String title,
     required DateTime date,
@@ -26,7 +26,6 @@ class TripRecords extends _$TripRecords {
     List<String>? photoUrls,
   }) async {
     final repository = ref.read(tripRecordRepositoryProvider);
-    // Perform the action
     await repository.createTripRecord(
       title: title,
       date: date,
@@ -34,11 +33,12 @@ class TripRecords extends _$TripRecords {
       groupId: groupId,
       photoUrls: photoUrls,
     );
-    // Invalidate the provider to re-fetch the list
-    ref.invalidate(tripRecordsProvider);
+    // !!!!!!!!!!!! 수정된 부분 !!!!!!!!!!!!
+    // 프로바이더를 다시 빌드(fetch)하기 위해 자신을 무효화합니다.
+    ref.invalidateSelf();
   }
 
-  // Method to update a record
+  // 기록을 수정하는 메서드
   Future<void> updateTripRecord({
     required String id,
     String? title,
@@ -56,14 +56,16 @@ class TripRecords extends _$TripRecords {
       groupId: groupId,
       photoUrls: photoUrls,
     );
-    ref.invalidate(tripRecordsProvider);
+    // !!!!!!!!!!!! 수정된 부분 !!!!!!!!!!!!
+    ref.invalidateSelf();
   }
 
-  // Method to delete a record
+  // 기록을 삭제하는 메서드
   Future<void> deleteTripRecord(String id) async {
     final repository = ref.read(tripRecordRepositoryProvider);
     await repository.deleteTripRecord(id);
-    ref.invalidate(tripRecordsProvider);
+    // !!!!!!!!!!!! 수정된 부분 !!!!!!!!!!!!
+    ref.invalidateSelf();
   }
 }
 

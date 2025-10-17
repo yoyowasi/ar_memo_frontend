@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -25,7 +27,11 @@ class _CreateTripRecordScreenState
   DateTime? _selectedDate;
   bool _isLoading = false;
   bool _isUploading = false;
+
+  // 서버에 저장될 최종 URL 목록
   final List<String> _photoUrls = [];
+  // 화면에 임시로 보여줄 로컬 파일 목록
+  final List<XFile> _localFiles = [];
 
   bool get _isEditMode => widget.recordToEdit != null;
 
@@ -37,23 +43,51 @@ class _CreateTripRecordScreenState
       _titleController.text = record.title;
       _contentController.text = record.content;
       _selectedDate = record.date;
+      // 수정 모드에서는 기존 서버 URL들을 목록에 추가
       _photoUrls.addAll(record.photoUrls);
     }
   }
 
+  /// 서버의 상대 경로를 완전한 URL로 변환하는 함수
+  String _toAbsoluteUrl(String relativeUrl) {
+    // 1. 나중에 실제 서버 사용할 때, 아래 주석을 풀고 사용하세요.
+    // const String productionUrl = "https://your-production-server.com";
+    // if (relativeUrl.startsWith('http')) return relativeUrl;
+    // return productionUrl + relativeUrl;
+
+    // 2. 지금은 로컬 개발 서버용 URL을 생성합니다.
+    final rawBaseUrl = dotenv.env['API_BASE_URL'];
+    if (rawBaseUrl == null || rawBaseUrl.isEmpty) return relativeUrl;
+
+    if (relativeUrl.startsWith('http')) return relativeUrl;
+
+    final uri = Uri.parse(rawBaseUrl);
+    final baseUrl = '${uri.scheme}://${uri.host}:${uri.port}';
+
+    return '$baseUrl$relativeUrl';
+  }
+
   Future<void> _pickAndUploadImage() async {
     final picker = ImagePicker();
-    final picked =
+    final pickedFile =
     await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
-    if (picked == null || !mounted) return;
+    if (pickedFile == null || !mounted) return;
 
-    setState(() => _isUploading = true);
+    setState(() {
+      _isUploading = true;
+      _localFiles.add(pickedFile); // 화면에 바로 보여주기 위해 로컬 파일 목록에 추가
+    });
+
     try {
       final repository = ref.read(uploadRepositoryProvider);
-      final result = await repository.uploadPhoto(picked);
-      setState(() => _photoUrls.add(result.url));
+      final result = await repository.uploadPhoto(pickedFile);
+      // 업로드 성공 시, 서버로부터 받은 URL을 최종 목록에 추가
+      _photoUrls.add(result.url);
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _localFiles.remove(pickedFile);
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('이미지 업로드에 실패했습니다: $e')),
         );
@@ -74,7 +108,6 @@ class _CreateTripRecordScreenState
       }
       setState(() => _isLoading = true);
 
-      // 비동기 작업 전 context 사용 변수 선언
       final navigator = Navigator.of(context);
       final messenger = ScaffoldMessenger.of(context);
 
@@ -97,8 +130,17 @@ class _CreateTripRecordScreenState
           );
         }
         navigator.pop(true);
-      } catch (e) {
-        messenger.showSnackBar(SnackBar(content: Text('저장 실패: ${e.toString()}')));
+      } catch (e, stackTrace) {
+        debugPrint('!!!!!!!!!!!! 저장 실패 오류 !!!!!!!!!!!!');
+        debugPrint('오류 타입: ${e.runtimeType}');
+        debugPrint('오류 메시지: $e');
+        debugPrint('스택 트레이스: $stackTrace');
+        debugPrint('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+
+        messenger.showSnackBar(SnackBar(
+          content: Text('저장 실패: $e'),
+          duration: const Duration(seconds: 5),
+        ));
       } finally {
         if (mounted) setState(() => _isLoading = false);
       }
@@ -110,6 +152,86 @@ class _CreateTripRecordScreenState
     _titleController.dispose();
     _contentController.dispose();
     super.dispose();
+  }
+
+  Widget _buildPhotoListView() {
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: _isEditMode ? _photoUrls.length + _localFiles.length : _localFiles.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 12),
+      itemBuilder: (context, index) {
+
+        // 수정 모드일 때, 기존 서버 이미지 표시
+        if (_isEditMode && index < _photoUrls.length) {
+          final photoUrl = _photoUrls[index];
+          return Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  _toAbsoluteUrl(photoUrl),
+                  width: 160,
+                  height: 160,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: InkWell(
+                  onTap: () => setState(() => _photoUrls.removeAt(index)),
+                  child: Container(
+                    decoration: const BoxDecoration(
+                        shape: BoxShape.circle, color: Colors.black54),
+                    padding: const EdgeInsets.all(4),
+                    child: const Icon(Icons.close, size: 16, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        // 새로 추가한 로컬 이미지 표시
+        final localFileIndex = _isEditMode ? index - _photoUrls.length : index;
+        final file = _localFiles[localFileIndex];
+        return Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.file(
+                File(file.path), // 로컬 파일 경로 사용
+                width: 160,
+                height: 160,
+                fit: BoxFit.cover,
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    _localFiles.removeAt(localFileIndex);
+                    // URL 목록에서도 해당하는 파일 이름으로 찾아 제거
+                    _photoUrls.removeWhere((url) => url.contains(file.name));
+                  });
+                },
+                child: Container(
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black54,
+                  ),
+                  padding: const EdgeInsets.all(4),
+                  child: const Icon(Icons.close, size: 16, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -134,7 +256,7 @@ class _CreateTripRecordScreenState
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  if (_photoUrls.isEmpty)
+                  if (_photoUrls.isEmpty && _localFiles.isEmpty)
                     InkWell(
                       onTap: _isUploading ? null : _pickAndUploadImage,
                       child: Column(
@@ -154,45 +276,7 @@ class _CreateTripRecordScreenState
                   else
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemBuilder: (context, index) {
-                          final photoUrl = _photoUrls[index];
-                          return Stack(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  photoUrl,
-                                  width: 160,
-                                  height: 160,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: InkWell(
-                                  onTap: () =>
-                                      setState(() => _photoUrls.removeAt(index)),
-                                  child: Container(
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Colors.black54,
-                                    ),
-                                    padding: const EdgeInsets.all(4),
-                                    child: const Icon(Icons.close,
-                                        size: 16, color: Colors.white),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                        separatorBuilder: (_, __) => const SizedBox(width: 12),
-                        itemCount: _photoUrls.length,
-                      ),
+                      child: _buildPhotoListView(),
                     ),
                   Positioned(
                     right: 16,
@@ -209,7 +293,6 @@ class _CreateTripRecordScreenState
                           : const Icon(Icons.add_a_photo_outlined, size: 16),
                       label: Text(_isUploading ? '업로드 중' : '추가'),
                       style: ElevatedButton.styleFrom(
-                        // withOpacity 경고 수정
                         backgroundColor: const Color.fromRGBO(0, 0, 0, 0.6),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(

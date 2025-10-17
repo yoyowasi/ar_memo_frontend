@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.2.0 <4.0.0' # SDK 버전 명시
+  sdk: '>=3.2.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -21,6 +21,7 @@ dependencies:
 
   # 상태 관리
   flutter_riverpod: ^3.0.0
+  riverpod_annotation: ^3.0.0
 
   # 데이터 저장
   shared_preferences: ^2.2.3
@@ -32,7 +33,6 @@ dependencies:
   intl: ^0.19.0
   image_picker: ^1.1.2
   kakao_map_plugin: ^0.3.2
-  riverpod_annotation: ^3.0.0
 
 dev_dependencies:
   flutter_test:
@@ -46,4 +46,3 @@ flutter:
 
   assets:
     - .env
-    # - assets/kakao_icon.png # 카카오 아이콘 사용 시 주석 해제

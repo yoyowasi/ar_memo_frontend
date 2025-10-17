@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
@@ -9,6 +10,25 @@ import 'package:ar_memo_frontend/screens/create_trip_record_screen.dart';
 class TripRecordDetailScreen extends ConsumerWidget {
   final String recordId;
   const TripRecordDetailScreen({super.key, required this.recordId});
+
+  /// 서버의 상대 경로를 완전한 URL로 변환하는 함수
+  String _toAbsoluteUrl(String relativeUrl) {
+    // 1. 나중에 실제 서버 사용할 때, 아래 주석을 풀고 사용하세요.
+    // const String productionUrl = "https://your-production-server.com";
+    // if (relativeUrl.startsWith('http')) return relativeUrl;
+    // return productionUrl + relativeUrl;
+
+    // 2. 지금은 로컬 개발 서버용 URL을 생성합니다.
+    final rawBaseUrl = dotenv.env['API_BASE_URL'];
+    if (rawBaseUrl == null || rawBaseUrl.isEmpty) return relativeUrl;
+
+    if (relativeUrl.startsWith('http')) return relativeUrl;
+
+    final uri = Uri.parse(rawBaseUrl);
+    final baseUrl = '${uri.scheme}://${uri.host}:${uri.port}';
+
+    return '$baseUrl$relativeUrl';
+  }
 
   void _deleteRecord(BuildContext context, WidgetRef ref) {
     showDialog(
@@ -24,7 +44,6 @@ class TripRecordDetailScreen extends ConsumerWidget {
           TextButton(
             child: const Text('삭제', style: TextStyle(color: Colors.red)),
             onPressed: () async {
-              // 비동기 작업 전에 context 관련 변수 선언
               final navigator = Navigator.of(ctx);
               final rootNavigator = Navigator.of(context);
               final messenger = ScaffoldMessenger.of(context);
@@ -33,8 +52,8 @@ class TripRecordDetailScreen extends ConsumerWidget {
                 await ref
                     .read(tripRecordsProvider.notifier)
                     .deleteTripRecord(recordId);
-                navigator.pop(); // 다이얼로그 닫기
-                rootNavigator.pop(true); // 상세 페이지 닫기
+                navigator.pop();
+                rootNavigator.pop(true);
                 messenger.showSnackBar(
                   const SnackBar(content: Text('일기가 삭제되었습니다.')),
                 );
@@ -70,7 +89,7 @@ class TripRecordDetailScreen extends ConsumerWidget {
                     ])),
                 background: record.photoUrls.isNotEmpty
                     ? Image.network(
-                  record.photoUrls.first,
+                  _toAbsoluteUrl(record.photoUrls.first),
                   fit: BoxFit.cover,
                 )
                     : Container(color: mutedSurfaceColor),
@@ -128,7 +147,7 @@ class TripRecordDetailScreen extends ConsumerWidget {
                           padding: const EdgeInsets.only(bottom: 8.0),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: Image.network(url),
+                            child: Image.network(_toAbsoluteUrl(url)),
                           ),
                         );
                       }).toList(),

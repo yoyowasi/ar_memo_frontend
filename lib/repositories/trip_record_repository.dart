@@ -65,11 +65,15 @@ class TripRecordRepository {
     String? groupId,
     List<String>? photoUrls,
   }) async {
+    // !!!!!!!!!!!! 날짜 형식 수정 !!!!!!!!!!!!
+    // 마이크로초를 제거하여 서버가 인식할 수 있는 형태로 변경합니다.
+    final dateString = date.toUtc().toIso8601String().split('.').first + 'Z';
+
     final response = await _apiService.post(
       '/trip-records',
       data: {
         'title': title,
-        'date': date.toIso8601String(),
+        'date': dateString, // 수정된 날짜 문자열 사용
         if (content != null) 'content': content,
         if (groupId != null && groupId.isNotEmpty) 'groupId': groupId,
         'photoUrls': photoUrls ?? <String>[],
@@ -95,15 +99,21 @@ class TripRecordRepository {
     String? groupId,
     List<String>? photoUrls,
   }) async {
+    final Map<String, dynamic> data = {
+      if (title != null) 'title': title,
+      if (content != null) 'content': content,
+      if (groupId != null) 'groupId': groupId,
+      if (photoUrls != null) 'photoUrls': photoUrls,
+    };
+
+    // !!!!!!!!!!!! 날짜 형식 수정 !!!!!!!!!!!!
+    if (date != null) {
+      data['date'] = date.toUtc().toIso8601String().split('.').first + 'Z';
+    }
+
     final response = await _apiService.put(
       '/trip-records/$id',
-      data: {
-        if (title != null) 'title': title,
-        if (date != null) 'date': date.toIso8601String(),
-        if (content != null) 'content': content,
-        if (groupId != null) 'groupId': groupId,
-        if (photoUrls != null) 'photoUrls': photoUrls,
-      },
+      data: data,
     );
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
