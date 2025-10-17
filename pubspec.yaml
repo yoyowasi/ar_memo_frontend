@@ -20,8 +20,8 @@ dependencies:
   mime: ^1.0.5
 
   # 상태 관리
-  flutter_riverpod: ^3.0.0
-  riverpod_annotation: ^3.0.0
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
 
   # 데이터 저장
   shared_preferences: ^2.2.3
@@ -32,17 +32,22 @@ dependencies:
   # 유틸리티
   intl: ^0.19.0
   image_picker: ^1.1.2
-  kakao_map_plugin: ^0.3.2
+  kakao_map_plugin: ^0.3.7
+  ar_flutter_plugin: ^0.7.3
+  vector_math: ^2.1.4
+  permission_handler: ^11.0.0
+  webview_flutter: ^4.7.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  build_runner: ^2.7.1
-  riverpod_generator: ^3.0.0
+  build_runner: ^2.5.4
+  riverpod_generator: ^2.4.0
 
 flutter:
   uses-material-design: true
 
   assets:
     - .env
+    - Models/

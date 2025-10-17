@@ -6,11 +6,12 @@ import 'package:ar_memo_frontend/screens/create_trip_record_screen.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:intl/intl.dart';
+import 'package:ar_memo_frontend/screens/ar_screen.dart'; // AR 스크린 import
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
-  // 여행 기록 생성 다이얼로그 (image_6627c4.png)
+  // 여행 기록 생성 다이얼로그
   void _showCreateTripDialog(BuildContext context, WidgetRef ref) {
     // create_trip_record_screen.dart 를 재사용합니다.
     Navigator.push(
@@ -68,7 +69,7 @@ class HomeScreen extends ConsumerWidget {
             ),
           ),
 
-          // 우측 플로팅 버튼 (image_6627a8.png 참고)
+          // 우측 플로팅 버튼
           Positioned(
               top: 120,
               right: 16,
@@ -90,7 +91,13 @@ class HomeScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                   FloatingActionButton(
                     heroTag: 'camera_fab',
-                    onPressed: () { /* TODO: AR 카메라 로직 연결 */ },
+                    onPressed: () {
+                      // AR 카메라 로직 연결
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ARScreen()),
+                      );
+                    },
                     mini: true,
                     backgroundColor: Colors.white,
                     child: const Column(
@@ -172,6 +179,7 @@ class HomeScreen extends ConsumerWidget {
                                     ? ClipRRect(
                                   borderRadius: BorderRadius.circular(8.0),
                                   child: Image.network(
+                                    // TODO: 이 URL은 서버 주소와 조합해야 할 수 있습니다.
                                     record.photoUrls.first,
                                     width: 56,
                                     height: 56,
