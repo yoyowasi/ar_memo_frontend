@@ -1,9 +1,10 @@
+import 'package:vector_math/vector_math_64.dart';
 
 class Memory {
   final String id;
-  final String? userId;
-  final List<double> coordinates;
-  final Map<String, dynamic>? anchor;
+  final String userId;
+  final double latitude;
+  final double longitude;
   final String? text;
   final String? photoUrl;
   final String? audioUrl;
@@ -12,14 +13,17 @@ class Memory {
   final bool favorite;
   final String visibility;
   final String? groupId;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  // --- anchor 필드 (백엔드 형식: List<double>[16]) ---
+  final List<double>? anchor;
+  // ----------------------------------------------------
 
   Memory({
     required this.id,
-    required this.coordinates,
-    this.userId,
-    this.anchor,
+    required this.userId,
+    required this.latitude,
+    required this.longitude,
     this.text,
     this.photoUrl,
     this.audioUrl,
@@ -28,64 +32,60 @@ class Memory {
     required this.favorite,
     required this.visibility,
     this.groupId,
-    this.createdAt,
-    this.updatedAt,
+    required this.createdAt,
+    required this.updatedAt,
+    this.anchor,
   });
 
-  // 위경도 값에 더 쉽게 접근하기 위한 getter
-  double? get latitude => coordinates.length >= 2 ? coordinates[1] : null;
-  double? get longitude => coordinates.length >= 2 ? coordinates[0] : null;
+  // --- anchor 데이터를 Matrix4로 변환 ---
+  Matrix4? get anchorTransform {
+    if (anchor != null && anchor!.length == 16) {
+      // Matrix4.fromList는 column-major 순서의 리스트를 받음
+      return Matrix4.fromList(anchor!);
+    }
+    return null;
+  }
+  // -------------------------------------
 
-  // 대표 이미지를 가져오기 위한 getter
-  String? get coverImage => photoUrl ?? thumbUrl;
-
-  /// JSON 데이터를 Memory 객체로 변환하는 factory 생성자
   factory Memory.fromJson(Map<String, dynamic> json) {
-    final location = json['location'] as Map<String, dynamic>?;
-    final coordinatesRaw =
-        location != null ? location['coordinates'] as List<dynamic>? : json['coordinates'] as List<dynamic>?;
-    final coordinates = coordinatesRaw != null
-        ? coordinatesRaw.map((coord) => (coord as num).toDouble()).toList()
-        : <double>[];
+    double lat = 0.0, lng = 0.0;
+    if (json['location']?['coordinates'] is List) {
+      final coords = json['location']['coordinates'] as List;
+      if (coords.length >= 2 && coords[0] is num && coords[1] is num) {
+        lng = (coords[0] as num).toDouble();
+        lat = (coords[1] as num).toDouble();
+      }
+    }
+
+    // --- anchor 파싱 (List<double>[16]) ---
+    List<double>? anchorData;
+    if (json['anchor'] is List) {
+      try {
+        anchorData = (json['anchor'] as List).map((e) => (e as num).toDouble()).toList();
+        if (anchorData.length != 16) anchorData = null; // 길이 확인
+      } catch (e) {
+        anchorData = null; // 타입 변환 실패
+        debugPrint("Anchor data parsing failed: $e");
+      }
+    }
+    // -------------------------------------
 
     return Memory(
-      id: json['_id'] ?? json['id'],
-      userId: json['userId']?.toString(),
-      coordinates: coordinates,
-      anchor: json['anchor'] as Map<String, dynamic>?,
-      text: json['text'] as String?,
-      photoUrl: json['photoUrl'] as String?,
-      audioUrl: json['audioUrl'] as String?,
-      thumbUrl: json['thumbUrl'] as String?,
-      tags: List<String>.from((json['tags'] as List<dynamic>? ?? []).map((tag) => tag.toString())),
-      favorite: json['favorite'] as bool? ?? false,
-      visibility: json['visibility'] as String? ?? 'private',
-      groupId: json['groupId']?.toString(),
-      createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt']) : null,
-      updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt']) : null,
+      id: json['_id'],
+      userId: json['userId'],
+      latitude: lat,
+      longitude: lng,
+      text: json['text'],
+      photoUrl: json['photoUrl'],
+      audioUrl: json['audioUrl'],
+      thumbUrl: json['thumbUrl'],
+      tags: List<String>.from(json['tags'] ?? []),
+      favorite: json['favorite'] ?? false,
+      visibility: json['visibility'] ?? 'private',
+      groupId: json['groupId'],
+      createdAt: DateTime.parse(json['createdAt']),
+      updatedAt: DateTime.parse(json['updatedAt']),
+      anchor: anchorData, // 파싱된 데이터 할당
     );
-  }
-
-  /// Memory 객체를 JSON 데이터로 변환하는 메서드
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'userId': userId,
-      'location': {
-        'type': 'Point',
-        'coordinates': coordinates,
-      },
-      'anchor': anchor,
-      'text': text,
-      'photoUrl': photoUrl,
-      'audioUrl': audioUrl,
-      'thumbUrl': thumbUrl,
-      'tags': tags,
-      'favorite': favorite,
-      'visibility': visibility,
-      'groupId': groupId,
-      'createdAt': createdAt?.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
-    }..removeWhere((key, value) => value == null); // null 값인 필드는 제거
   }
 }

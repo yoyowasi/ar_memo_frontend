@@ -13,41 +13,35 @@ dependencies:
 
   # UI
   cupertino_icons: ^1.0.8
+  flutter_speed_dial: ^7.0.0
+  ar_flutter_plugin_updated: ^1.0.0
+
+  # --- 카카오맵 SDK 변경 ---
+  # kakao_map_plugin: ^1.1.1 # <- 삭제 또는 주석 처리
+  kakao_flutter_sdk_map: ^1.10.0 # <- 공식 SDK 추가 (최신 안정 버전 확인)
+  # -----------------------
 
   # 네트워킹
   http: ^1.2.1
-  http_parser: ^4.0.2
-  mime: ^1.0.5
-
-  # 상태 관리
+  flutter_dotenv: ^5.1.0
   flutter_riverpod: ^2.5.1
   riverpod_annotation: ^2.3.5
-
-  # 데이터 저장
   shared_preferences: ^2.2.3
-
-  # 환경 변수
-  flutter_dotenv: ^5.1.0
-
-  # 유틸리티
-  intl: ^0.19.0
   image_picker: ^1.1.2
-  kakao_map_plugin: ^0.3.7
-  ar_flutter_plugin_updated: ^0.0.1
   vector_math: ^2.1.4
-  permission_handler: ^11.3.1
-  webview_flutter: ^4.7.0
+  intl: ^0.19.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  build_runner: ^2.5.4
-  riverpod_generator: ^2.4.0
+  build_runner: ^2.4.11
+  riverpod_generator: ^2.4.1
+  riverpod_lint: ^2.3.12
+  custom_lint: ^0.6.4
 
 flutter:
   uses-material-design: true
-
   assets:
     - .env
-    - Models/
+    - Models/ # 모델 사용 시 주석 해제
