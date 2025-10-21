@@ -1,4 +1,5 @@
 import 'package:vector_math/vector_math_64.dart';
+import 'package:flutter/foundation.dart'; // debugPrint 사용 위해 추가
 
 class Memory {
   final String id;
@@ -15,9 +16,7 @@ class Memory {
   final String? groupId;
   final DateTime createdAt;
   final DateTime updatedAt;
-  // --- anchor 필드 (백엔드 형식: List<double>[16]) ---
-  final List<double>? anchor;
-  // ----------------------------------------------------
+  final List<double>? anchor; // 백엔드 형식: List<double>[16]
 
   Memory({
     required this.id,
@@ -37,15 +36,12 @@ class Memory {
     this.anchor,
   });
 
-  // --- anchor 데이터를 Matrix4로 변환 ---
   Matrix4? get anchorTransform {
     if (anchor != null && anchor!.length == 16) {
-      // Matrix4.fromList는 column-major 순서의 리스트를 받음
       return Matrix4.fromList(anchor!);
     }
     return null;
   }
-  // -------------------------------------
 
   factory Memory.fromJson(Map<String, dynamic> json) {
     double lat = 0.0, lng = 0.0;
@@ -57,18 +53,16 @@ class Memory {
       }
     }
 
-    // --- anchor 파싱 (List<double>[16]) ---
     List<double>? anchorData;
     if (json['anchor'] is List) {
       try {
         anchorData = (json['anchor'] as List).map((e) => (e as num).toDouble()).toList();
-        if (anchorData.length != 16) anchorData = null; // 길이 확인
+        if (anchorData.length != 16) anchorData = null;
       } catch (e) {
-        anchorData = null; // 타입 변환 실패
-        debugPrint("Anchor data parsing failed: $e");
+        anchorData = null;
+        debugPrint("Anchor data parsing failed: $e"); // debugPrint 사용
       }
     }
-    // -------------------------------------
 
     return Memory(
       id: json['_id'],
@@ -85,7 +79,7 @@ class Memory {
       groupId: json['groupId'],
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
-      anchor: anchorData, // 파싱된 데이터 할당
+      anchor: anchorData,
     );
   }
 }

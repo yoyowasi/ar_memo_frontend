@@ -1,22 +1,23 @@
-import 'package:ar_memo_frontend/screens/splash_screen.dart';
+import 'package:kakao_map_sdk/kakao_map_sdk.dart'; // KakaoMap SDK import
+
+import 'package:ar_memo_frontend/repositories/auth_repository.dart'; // AuthRepository import 추가
+import 'package:ar_memo_frontend/providers/auth_provider.dart';
+import 'package:ar_memo_frontend/screens/auth_gate_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
-import 'package:flutter/foundation.dart'; // ✅ kIsWeb 사용을 위해 추가
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:kakao_map_plugin/kakao_map_plugin.dart'; // import 문 추가
+import 'package:kakao_flutter_sdk_common/kakao_flutter_sdk_common.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
   await initializeDateFormatting('ko_KR', null);
 
-  // ✅ 플랫폼(웹/앱)에 맞는 키로 카카오맵 SDK를 한 번만 초기화합니다.
-  String kakaoMapKey = kIsWeb
-      ? dotenv.env['KAKAO_MAP_JAVASCRIPT_KEY'] ?? ''
-      : dotenv.env['KAKAO_MAP_NATIVE_APP_KEY'] ?? '';
-  AuthRepository.initialize(appKey: kakaoMapKey);
+  // --- SDK 초기화 변경 ---
+  await KakaoMapSdk.instance.initialize(dotenv.env['KAKAO_NATIVE_APP_KEY'] ?? '');
+  // ---------------------
 
   runApp(
     const ProviderScope(
@@ -25,22 +26,30 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
-      title: 'AR Memo',
+      title: 'AR 저널 앱',
       theme: ThemeData(
         primaryColor: primaryColor,
         scaffoldBackgroundColor: backgroundColor,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: textColor,
+          elevation: 0,
+          titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
+          iconTheme: IconThemeData(color: textColor),
+          
+        ),
         colorScheme: ColorScheme.fromSeed(seedColor: primaryColor),
         useMaterial3: true,
         fontFamily: 'Pretendard',
       ),
+      home: const AuthGateScreen(),
       debugShowCheckedModeBanner: false,
-      home: const SplashScreen(),
     );
   }
 }

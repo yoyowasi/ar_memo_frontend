@@ -2,17 +2,17 @@
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math_64.dart' as vector;
 
-// ar_flutter_plugin_updated
-import 'package:ar_flutter_plugin_updated/ar_flutter_plugin.dart';
-import 'package:ar_flutter_plugin_updated/datatypes/node_types.dart';
-import 'package:ar_flutter_plugin_updated/datatypes/config_planedetection.dart';
-import 'package:ar_flutter_plugin_updated/managers/ar_anchor_manager.dart';
-import 'package:ar_flutter_plugin_updated/managers/ar_location_manager.dart';
-import 'package:ar_flutter_plugin_updated/managers/ar_object_manager.dart';
-import 'package:ar_flutter_plugin_updated/managers/ar_session_manager.dart';
-import 'package:ar_flutter_plugin_updated/models/ar_anchor.dart';
-import 'package:ar_flutter_plugin_updated/models/ar_hittest_result.dart';
-import 'package:ar_flutter_plugin_updated/models/ar_node.dart';
+// ar_flutter_plugin
+import 'package:ar_flutter_plugin/ar_flutter_plugin.dart' as ar_plugin;
+import 'package:ar_flutter_plugin/datatypes/node_types.dart';
+import 'package:ar_flutter_plugin/datatypes/config_planedetection.dart' as ar_plugin_datatypes;
+import 'package:ar_flutter_plugin/managers/ar_anchor_manager.dart';
+import 'package:ar_flutter_plugin/managers/ar_location_manager.dart';
+import 'package:ar_flutter_plugin/managers/ar_object_manager.dart';
+import 'package:ar_flutter_plugin/managers/ar_session_manager.dart';
+import 'package:ar_flutter_plugin/models/ar_anchor.dart';
+import 'package:ar_flutter_plugin/models/ar_hittest_result.dart';
+import 'package:ar_flutter_plugin/models/ar_node.dart';
 
 class ARScreen extends StatefulWidget {
   const ARScreen({super.key});
@@ -22,15 +22,15 @@ class ARScreen extends StatefulWidget {
 }
 
 class _ARScreenState extends State<ARScreen> {
-  late ARSessionManager arSessionManager;
-  late ARObjectManager arObjectManager;
-  late ARAnchorManager arAnchorManager;
+  late ar_plugin.ARSessionManager arSessionManager;
+  late ar_plugin.ARObjectManager arObjectManager;
+  late ar_plugin.ARAnchorManager arAnchorManager;
 
   void onARViewCreated(
-      ARSessionManager sessionManager,
-      ARObjectManager objectManager,
-      ARAnchorManager anchorManager,
-      ARLocationManager locationManager,
+      ar_plugin.ARSessionManager sessionManager,
+      ar_plugin.ARObjectManager objectManager,
+      ar_plugin.ARAnchorManager anchorManager,
+      ar_plugin.ARLocationManager locationManager,
       ) {
     arSessionManager = sessionManager;
     arObjectManager = objectManager;
@@ -49,12 +49,12 @@ class _ARScreenState extends State<ARScreen> {
     arSessionManager.onPlaneOrPointTap = _onPlaneOrPointTapped;
   }
 
-  Future<void> _onPlaneOrPointTapped(List<ARHitTestResult> hits) async {
+  Future<void> _onPlaneOrPointTapped(List<ar_plugin.ARHitTestResult> hits) async {
     if (hits.isEmpty) return;
     final hit = hits.first;
 
     // ✅ 앵커 생성 (0.7.3)
-    final anchor = ARPlaneAnchor(transformation: hit.worldTransform);
+    final anchor = ar_plugin.ARPlaneAnchor(transformation: hit.worldTransform);
     final didAddAnchor = await arAnchorManager.addAnchor(anchor);
     if (didAddAnchor != true) {
       arSessionManager.onError?.call('앵커 추가 실패');
@@ -64,8 +64,8 @@ class _ARScreenState extends State<ARScreen> {
     // ✅ 노드 생성
     // 주의: 로컬 assets는 GLTF2(.gltf) 경로 + NodeType.localGLTF2를 사용하세요.
     // 만약 .glb만 있다면: (1) .gltf로 변환하거나  (2) URL이면 NodeType.webGLB 사용
-    final node = ARNode(
-      type: NodeType.localGLTF2, // ✅ 0.7.3 유효 enum
+    final node = ar_plugin.ARNode(
+      type: ar_plugin.NodeType.localGLTF2, // ✅ 0.7.3 유효 enum
       uri: 'Models/frame.gltf',  // ✅ assets에 GLTF2를 두는 것을 권장
       scale: vector.Vector3(0.5, 0.5, 0.5),
       // 필요 시 position/rotation/eulerAngles 추가
@@ -97,10 +97,10 @@ class _ARScreenState extends State<ARScreen> {
         elevation: 0,
       ),
       extendBodyBehindAppBar: true,
-      body: ARView(
+      body: ar_plugin.ARView(
         onARViewCreated: onARViewCreated,
         // ❌ planeDetection (오류) → ✅ planeDetectionConfig
-        planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical,
+        planeDetectionConfig: ar_plugin_datatypes.PlaneDetectionConfig.horizontalAndVertical,
       ),
     );
   }

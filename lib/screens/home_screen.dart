@@ -6,10 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:kakao_flutter_sdk_map/kakao_flutter_sdk_map.dart'; // 공식 SDK import
+import 'package:kakao_map_sdk/kakao_map_sdk.dart';
+// -----------------
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
-import 'package:ar_memo_frontend/screens/ar_viewer_screen.dart';
+import 'package:ar_memo_frontend/screens/ar_viewer_screen.dart'; // ar_viewer_screen import
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
@@ -19,69 +20,62 @@ import 'dart:math';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
-
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  late MapController _mapController; // MapController 사용
+  late KakaoMapController _mapController; // MapController 사용
   Set<Marker> _markers = {};
   final Random _random = Random();
+  String? _selectedMarkerId; // 선택된 마커 ID (InfoWindow 표시용)
 
   @override
   void initState() {
     super.initState();
-    // initState에서는 Provider를 직접 read하기 어려우므로
-    // WidgetsBinding을 사용하여 첫 빌드 완료 후 마커 로드
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) { // mounted 확인 추가
-        _loadAndSetMarkers();
-      }
+      if (mounted) _loadAndSetMarkers();
     });
   }
 
-  // 마커 로드 및 설정 로직
+  // 마커 로드 로직 (kakao_flutter_sdk_map API)
   Future<void> _loadAndSetMarkers() async {
     final recordsAsyncValue = ref.read(tripRecordsProvider);
-
     recordsAsyncValue.whenData((records) {
       final newMarkers = <Marker>{};
       for (final record in records) {
         double? lat, lng;
-        bool hasLocation = false;
-        String infoTitle = record.title; // InfoWindow 내용
+        String infoTitle = record.title;
 
         if (record.latitude != null && record.longitude != null) {
           lat = record.latitude!;
           lng = record.longitude!;
-          hasLocation = true;
         } else {
-          // 임시 위치
           lat = 37.5665 + (_random.nextDouble() * 0.01 - 0.005);
           lng = 126.9780 + (_random.nextDouble() * 0.01 - 0.005);
-          infoTitle += " (위치 없음)"; // 위치 없을 때 표시
+          infoTitle += " (위치 없음)";
         }
 
-        newMarkers.add(
-          Marker(
+        newMarkers.add(Marker(
             markerId: record.id,
             latLng: LatLng(lat, lng),
-            // TODO: 커스텀 마커 이미지 적용 필요
-            // markerImageSrc: 'assets/images/marker_pin.png', // 예시
-            infoWindowContent: infoTitle, // InfoWindow 텍스트 설정
-          ),
-        );
+            // markerImageSrc: '...', // 커스텀 마커 이미지
+            infoWindowContent: infoTitle, // InfoWindow 텍스트
+            onTap: () { // 마커 탭 시 상세 화면 이동
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => TripRecordDetailScreen(recordId: record.id)),
+              );
+            }
+        ));
       }
       if (mounted && _markers != newMarkers) {
-        setState(() {
-          _markers = newMarkers;
-        });
+        setState(() => _markers = newMarkers);
       }
     });
   }
 
-  /// 서버 URL 변환 함수
+  /// 서버 URL 변환
   String _toAbsoluteUrl(String relativeUrl) {
     if (relativeUrl.startsWith('http')) return relativeUrl;
     final rawBaseUrl = dotenv.env['API_BASE_URL'];
@@ -143,13 +137,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('날짜를 선택해주세요.'))); return;
               }
               setState(() => isLoading = true);
-              double? currentLat;
-              double? currentLng;
+              double? currentLat, currentLng;
               if (mounted && this.mounted) {
                 try {
-                  final centerLatLng = await _mapController.getCenter();
-                  currentLat = centerLatLng.latitude;
-                  currentLng = centerLatLng.longitude;
+                  // final centerLatLng = await _mapController.getCenter();
+                  // currentLat = centerLatLng.latitude;
+                  // currentLng = centerLatLng.longitude;
                 } catch (e) { debugPrint("지도 중심 좌표 가져오기 실패: $e"); }
               }
               try {
@@ -160,7 +153,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 );
                 Navigator.pop(dialogContext);
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
-                // 마커 갱신은 watch를 통해 처리
               } catch (e) {
                 if (dialogContext.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('저장 실패: $e')));
               } finally {
@@ -205,7 +197,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Provider watch (동일)
     ref.watch(tripRecordsProvider).whenData((_) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _loadAndSetMarkers();
@@ -226,28 +217,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: Stack(
         children: [
-          // 카카오맵 위젯
+          // KakaoMap 위젯 (공식 SDK)
           KakaoMap(
             onMapCreated: (controller) {
               _mapController = controller;
-              // 컨트롤러가 준비되면 마커 로드
               _loadAndSetMarkers();
             },
             markers: _markers.toList(),
             onMarkerTap: (markerId, latLng, zoomLevel) {
               debugPrint('[onMarkerTap] markerId $markerId / $latLng');
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => TripRecordDetailScreen(recordId: markerId)),
-              );
-              // .then() 제거
+              // InfoWindow를 탭했을 때가 아니라, 마커 자체를 탭했을 때
+              // _mapController.showInfoWindow(markerId); // InfoWindow 표시 (API 확인 필요)
+            },
+            onInfoWindowTap: (markerId, latLng) { // InfoWindow 탭 이벤트
+              debugPrint('[onInfoWindowTap] markerId $markerId');
+              Navigator.push(context, MaterialPageRoute(builder: (context) => TripRecordDetailScreen(recordId: markerId)));
             },
             center: LatLng(37.5665, 126.9780),
             currentLevel: 7,
-            onMapTap: (latLng) {
-              // InfoWindow 닫기 (새 SDK에서는 InfoWindow 탭 시 자동으로 닫힐 수 있음, 확인 필요)
-              // _mapController.closeInfoWindow(); // 필요 시 사용
-            },
           ),
 
           // 상단 검색 바
@@ -262,8 +249,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     onPressed: () async {
                       // TODO: geolocator 사용
                       final currentLatLng = LatLng(37.5665, 126.9780); // 임시
-                      _mapController.setCenter(currentLatLng);
-                      _mapController.setLevel(5);
+                      _mapController.moveCamera(CameraUpdate.newLatLngZoom(currentLatLng, 5));
                     },
                     mini: true, backgroundColor: Colors.white, elevation: 2,
                     child: const Icon(Icons.my_location, color: primaryColor),
@@ -310,13 +296,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), clipBehavior: Clip.antiAlias,
                                 child: InkWell(
                                   onTap: () {
-                                    // 지도 이동
                                     if (record.latitude != null && record.longitude != null) {
                                       final targetLatLng = LatLng(record.latitude!, record.longitude!);
-                                      _mapController.setCenter(targetLatLng);
-                                      _mapController.setLevel(5);
+                                      _mapController.moveCamera(CameraUpdate.fromLatLngZoom(targetLatLng, 5));
                                     }
-                                    // 상세 화면 이동
                                     Navigator.push(context, MaterialPageRoute(builder: (context) => TripRecordDetailScreen(recordId: record.id)));
                                   },
                                   child: Row(
