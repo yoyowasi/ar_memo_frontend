@@ -1,48 +1,58 @@
-// android/app/build.gradle.kts
+// android/app/build.gradle.kts  (전체 교체)
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id("kotlin-android")               // 또는 id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
     namespace = "com.example.ar_memo_frontend"
 
-    // Flutter Gradle plugin exposes these values directly for Kotlin DSL
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // ❗ flutter.extra 사용 금지 — 고정값으로 명시
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.ar_memo_frontend"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        minSdk = 24            // ARCore/AR 플러그인은 보통 24 이상 권장
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+        multiDexEnabled = true
     }
 
+    // AGP 8.x 이상 + JDK 17 권장
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17"
     }
 
+    // 🔧 Debug는 축소 OFF / Release는 코드+리소스 축소 ON
     buildTypes {
-        release {
-            // 필요 시 R8/ProGuard 설정 추가
+        getByName("debug") {
             isMinifyEnabled = false
+            isShrinkResources = false
         }
-        debug {
-            isDebuggable = true
+        getByName("release") {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 
-    // (필요 시) packagingOptions, signingConfigs 등은 프로젝트에 맞게 추가
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
 }
 
 dependencies {
-    // Flutter가 관리하는 의존성이므로 일반적으로 별도 추가 불필요
+    implementation("androidx.multidex:multidex:2.0.1")
 }

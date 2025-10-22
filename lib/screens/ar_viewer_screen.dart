@@ -51,7 +51,6 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
       customPlaneTexturePath: null,
       showWorldOrigin: false,
       handleTaps: true,
-      planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical,
     );
     arObjectManager!.onInitialize();
 
@@ -102,19 +101,20 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
 
   // 메모리 노드 추가
   Future<ARNode> _addMemoryNode(Memory memory, vector.Matrix4 transform, String nodeName) async {
-    // --- 'ar_flutter_plugin' API에 맞게 ARNode 생성 ---
-    // (uri 경로 수정, transform 파라미터 사용)
+    final anchor = ARPlaneAnchor(transformation: transform);
+    final didAddAnchor = await arAnchorManager?.addAnchor(anchor);
+    if (didAddAnchor != true) {
+      throw Exception("Failed to add anchor for memory ${memory.id}");
+    }
+
     final node = ARNode(
       type: NodeType.localGLTF2,
-      uri: "Models/frame.glb", // pubspec.yaml assets 경로와 일치
+      uri: "Models/frame.glb",
       scale: vector.Vector3(0.2, 0.2, 0.2),
-      transformation: transform,
-      name: nodeName,
-      // materials: [ ... ], // GLTF 모델은 자체 재질 사용
     );
-    // ---------------------------------------------
-    await arObjectManager?.addNode(node);
-    debugPrint("AR Node Added: $nodeName");
+
+    await arObjectManager?.addNode(node, planeAnchor: anchor);
+    debugPrint("AR Node Added for memory ${memory.id}");
     return node;
   }
 
@@ -125,8 +125,8 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
     final singleHit = results.firstWhere(
       // --- 'point' -> 'featurePoint'로 수정 (ar_flutter_plugin API) ---
           (hit) =>
-      hit.type == ARHitTestResultType.plane ||
-          hit.type == ARHitTestResultType.featurePoint,
+      hit.type.index == 3 || // ARHitTestResultType.plane
+          hit.type.index == 0, // ARHitTestResultType.featurePoint
       // ---------------------------------------------------------
       orElse: () => results.first,
     );
@@ -141,13 +141,17 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
 
   // --- 임시 큐브 추가 함수 (ar_flutter_plugin API) ---
   Future<void> _addTempCube(vector.Matrix4 transform) async {
+    final anchor = ARPlaneAnchor(transformation: transform);
+    final success = await arAnchorManager?.addAnchor(anchor);
+    if (success != true) {
+      return;
+    }
     final node = ARNode(
-      type: NodeType.cube,
-      name: "temp_cube_${DateTime.now().millisecondsSinceEpoch}",
-      transformation: transform,
+      type: NodeType.localGLTF2,
+      uri: 'Models/frame.glb',
       scale: vector.Vector3(0.05, 0.05, 0.05),
     );
-    await arObjectManager?.addNode(node);
+    await arObjectManager?.addNode(node, planeAnchor: anchor);
   }
   // --- 함수 추가 끝 ---
 
@@ -155,7 +159,6 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
   @override
   void dispose() {
     arSessionManager?.dispose();
-    arObjectManager?.dispose();
     super.dispose();
   }
 
@@ -178,7 +181,7 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
       extendBodyBehindAppBar: true,
       body: ARView(
         onARViewCreated: onARViewCreated,
-        // planeDetectionConfig는 onARViewCreated 내부의 onInitialize에서 설정
+        planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical,
       ),
     );
   }

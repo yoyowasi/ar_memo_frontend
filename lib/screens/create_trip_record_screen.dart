@@ -77,7 +77,9 @@ class _CreateTripRecordScreenState
       _photoUrls.addAll(results.map((result) => result.url));
     } catch (e) {
       if (mounted) {
-        pickedFiles.forEach((file) => _localFiles.remove(file));
+        for (var file in pickedFiles) {
+        _localFiles.remove(file);
+      }
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('이미지 업로드 중 오류 발생: $e')));
       }
     } finally {

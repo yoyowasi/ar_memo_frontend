@@ -21,18 +21,18 @@ subprojects {
 
 subprojects {
     project.tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-        if (project.name == "webview_flutter_android" || project.name == "shared_preferences_android") {
-            kotlinOptions {
-                jvmTarget = "17"
-            }
-        } else if (project.name == "kakao_map_plugin") {
-            kotlinOptions {
-                jvmTarget = "11"
-            }
-        } else {
-            kotlinOptions {
-                jvmTarget = "11"
-            }
+        kotlinOptions {
+            jvmTarget = "17"
+        }
+    }
+}
+
+// 모든 프로젝트 평가 후 Java 컴파일러 버전 설정
+afterEvaluate {
+    subprojects {
+        tasks.withType<JavaCompile>().configureEach {
+            sourceCompatibility = "17"
+            targetCompatibility = "17"
         }
     }
 }

@@ -7,7 +7,7 @@ import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:intl/intl.dart';
 // 생성 팝업 관련 import (HomeScreen에서 가져옴 - 분리 권장)
-import 'package:ar_memo_frontend/screens/home_screen.dart';
+
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
@@ -56,7 +56,9 @@ class TripRecordListScreen extends ConsumerWidget {
                 photoUrls.addAll(results.map((result) => result.url));
               } catch (e) {
                 if (builderContext.mounted) {
-                  pickedFiles.forEach((file) => localFiles.remove(file));
+                  for (var file in pickedFiles) {
+                  localFiles.remove(file);
+                }
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('이미지 업로드 실패: $e')));
                 }
               } finally {
@@ -78,6 +80,8 @@ class TripRecordListScreen extends ConsumerWidget {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('날짜를 선택해주세요.'))); return;
               }
               setState(() => isLoading = true);
+              final navigator = Navigator.of(dialogContext);
+              final messenger = ScaffoldMessenger.of(context);
               // TODO: 생성 시 위치 정보도 함께 저장하도록 수정 필요 (팝업에서 위치 입력 받거나, 현재 위치 사용)
               double? currentLat; // 임시
               double? currentLng; // 임시
@@ -87,8 +91,8 @@ class TripRecordListScreen extends ConsumerWidget {
                   date: selectedDate!, photoUrls: photoUrls,
                   latitude: currentLat, longitude: currentLng,
                 );
-                Navigator.pop(dialogContext);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
+                navigator.pop();
+                messenger.showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
                 // Provider watch로 목록 자동 갱신
               } catch (e) {
                 if (dialogContext.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('저장 실패: $e')));
@@ -189,9 +193,8 @@ class TripRecordListScreen extends ConsumerWidget {
           }
           // ListView 및 카드 디자인 적용
           return RefreshIndicator(
-            onRefresh: () async { // async 추가
-              // invalidate 대신 refresh 사용 (더 명확)
-              await ref.refresh(tripRecordsProvider.future);
+            onRefresh: () async {
+              await ref.read(tripRecordsProvider.notifier).build();
             },
             child: ListView.builder(
               padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 80), // FAB 고려 하단 패딩

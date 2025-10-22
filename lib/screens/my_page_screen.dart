@@ -44,7 +44,7 @@ class MyPageScreen extends ConsumerWidget {
               final groupRepo = ref.read(groupRepositoryProvider);
               try {
                 if (isEditMode) {
-                  await groupRepo.updateGroup(id: groupToEdit!.id, name: name, colorHex: selectedColorHex);
+                  await groupRepo.updateGroup(id: groupToEdit.id, name: name, colorHex: selectedColorHex);
                 } else {
                   await groupRepo.createGroup(name: name, colorHex: selectedColorHex);
                 }

@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:ar_memo_frontend/repositories/trip_record_repository.dart';
@@ -6,7 +7,7 @@ part 'trip_record_provider.g.dart'; // 코드 생성 파일
 
 // Repository Provider
 @riverpod
-TripRecordRepository tripRecordRepository(TripRecordRepositoryRef ref) { // Ref 타입 수정
+TripRecordRepository tripRecordRepository(Ref ref) { // Ref 타입 수정
   return TripRecordRepository();
 }
 
@@ -88,7 +89,7 @@ class TripRecords extends _$TripRecords {
 
 // 단일 TripRecord 상세 정보 Provider
 @riverpod
-Future<TripRecord> tripRecordDetail(TripRecordDetailRef ref, String id) async { // Ref 타입 수정
+Future<TripRecord> tripRecordDetail(Ref ref, String id) async { // Ref 타입 수정
   final repo = ref.watch(tripRecordRepositoryProvider);
   return repo.getTripRecord(id);
 }

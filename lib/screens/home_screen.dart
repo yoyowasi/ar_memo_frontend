@@ -108,7 +108,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 photoUrls.addAll(results.map((result) => result.url));
               } catch (e) {
                 if (builderContext.mounted) {
-                  pickedFiles.forEach((file) => localFiles.remove(file));
+                  for (var file in pickedFiles) {
+                  localFiles.remove(file);
+                }
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('이미지 업로드 실패: $e')));
                 }
               } finally {
@@ -130,8 +132,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('날짜를 선택해주세요.'))); return;
               }
               setState(() => isLoading = true);
+              final navigator = Navigator.of(dialogContext);
+              final messenger = ScaffoldMessenger.of(context);
               double? currentLat, currentLng;
-              if (mounted && this.mounted) {
+              if (mounted && mounted) {
                 try {
                   // final centerLatLng = await _mapController.getCenter();
                   // currentLat = centerLatLng.latitude;
@@ -144,8 +148,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   date: selectedDate!, photoUrls: photoUrls,
                   latitude: currentLat, longitude: currentLng,
                 );
-                Navigator.pop(dialogContext);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
+                navigator.pop();
+                messenger.showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
               } catch (e) {
                 if (dialogContext.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('저장 실패: $e')));
               } finally {

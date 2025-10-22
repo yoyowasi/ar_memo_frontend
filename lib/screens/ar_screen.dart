@@ -56,7 +56,7 @@ class _ARScreenState extends State<ARScreen> {
     final anchor = ARPlaneAnchor(transformation: hit.worldTransform);
     final didAddAnchor = await arAnchorManager.addAnchor(anchor);
     if (didAddAnchor != true) {
-      arSessionManager.onError?.call('앵커 추가 실패');
+      arSessionManager.onError.call('앵커 추가 실패');
       return;
     }
 
@@ -82,7 +82,7 @@ class _ARScreenState extends State<ARScreen> {
         const SnackBar(content: Text('여기에 메모를 추가합니다!')),
       );
     } else {
-      arSessionManager.onError?.call('노드 추가 실패');
+      arSessionManager.onError.call('노드 추가 실패');
     }
   }
 
