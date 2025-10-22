@@ -1,5 +1,5 @@
 import 'package:vector_math/vector_math_64.dart';
-import 'package:flutter/foundation.dart'; // debugPrint 사용 위해 추가
+import 'package:flutter/foundation.dart'; // <- debugPrint 사용을 위해 추가
 
 class Memory {
   final String id;
@@ -16,7 +16,7 @@ class Memory {
   final String? groupId;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final List<double>? anchor; // 백엔드 형식: List<double>[16]
+  final List<double>? anchor;
 
   Memory({
     required this.id,
@@ -60,7 +60,7 @@ class Memory {
         if (anchorData.length != 16) anchorData = null;
       } catch (e) {
         anchorData = null;
-        debugPrint("Anchor data parsing failed: $e"); // debugPrint 사용
+        debugPrint("Anchor data parsing failed: $e"); // <- 오류 해결
       }
     }
 

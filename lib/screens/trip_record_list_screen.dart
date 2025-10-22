@@ -6,12 +6,11 @@ import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:intl/intl.dart';
-// 생성 팝업 관련 import (HomeScreen에서 가져옴 - 분리 권장)
-
+// import 'package:ar_memo_frontend/screens/home_screen.dart'; // <- 삭제
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
-import 'package:ar_memo_frontend/models/trip_record.dart'; // TripRecord import
+import 'package:ar_memo_frontend/models/trip_record.dart';
 
 class TripRecordListScreen extends ConsumerWidget {
   const TripRecordListScreen({super.key});
@@ -30,7 +29,7 @@ class TripRecordListScreen extends ConsumerWidget {
     return '$baseUrl$relativeUrl';
   }
 
-  // --- 생성 팝업 로직 (HomeScreen에서 가져옴) ---
+  // --- 생성 팝업 로직 (유지) ---
   void _showCreateTripPopup(BuildContext context, WidgetRef ref) {
     final titleController = TextEditingController();
     final contentController = TextEditingController();
@@ -56,9 +55,7 @@ class TripRecordListScreen extends ConsumerWidget {
                 photoUrls.addAll(results.map((result) => result.url));
               } catch (e) {
                 if (builderContext.mounted) {
-                  for (var file in pickedFiles) {
-                  localFiles.remove(file);
-                }
+                  pickedFiles.forEach((file) => localFiles.remove(file));
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('이미지 업로드 실패: $e')));
                 }
               } finally {
@@ -80,20 +77,16 @@ class TripRecordListScreen extends ConsumerWidget {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('날짜를 선택해주세요.'))); return;
               }
               setState(() => isLoading = true);
-              final navigator = Navigator.of(dialogContext);
-              final messenger = ScaffoldMessenger.of(context);
-              // TODO: 생성 시 위치 정보도 함께 저장하도록 수정 필요 (팝업에서 위치 입력 받거나, 현재 위치 사용)
-              double? currentLat; // 임시
-              double? currentLng; // 임시
+              double? currentLat; // TODO: 위치 입력
+              double? currentLng; // TODO: 위치 입력
               try {
                 await ref.read(tripRecordsProvider.notifier).addTripRecord(
                   title: titleController.text, content: contentController.text,
                   date: selectedDate!, photoUrls: photoUrls,
                   latitude: currentLat, longitude: currentLng,
                 );
-                navigator.pop();
-                messenger.showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
-                // Provider watch로 목록 자동 갱신
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
               } catch (e) {
                 if (dialogContext.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('저장 실패: $e')));
               } finally {
@@ -152,119 +145,75 @@ class TripRecordListScreen extends ConsumerWidget {
             child: Container(color: borderColor, height: 1.0)
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: textColor),
-            tooltip: '검색',
-            onPressed: () { /* TODO: 검색 기능 */ },
-          ),
-          IconButton(
-            icon: const Icon(Icons.filter_list, color: textColor),
-            tooltip: '필터',
-            onPressed: () { /* TODO: 필터 기능 */ },
-          ),
+          IconButton(icon: const Icon(Icons.search, color: textColor), tooltip: '검색', onPressed: () { /* TODO: 검색 */ }),
+          IconButton(icon: const Icon(Icons.filter_list, color: textColor), tooltip: '필터', onPressed: () { /* TODO: 필터 */ }),
         ],
       ),
       body: tripRecordsAsyncValue.when(
         data: (records) {
           if (records.isEmpty) {
             // 빈 상태 UI
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.article_outlined, size: 48, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  const Text('작성된 일기가 없습니다.', style: bodyText1),
-                  const SizedBox(height: 4),
-                  const Text('새로운 여행 기록을 추가해보세요.', style: bodyText2),
-                  const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    onPressed: () => _showCreateTripPopup(context, ref), // 생성 팝업 호출
-                    icon: const Icon(Icons.add),
-                    label: const Text('일기 쓰기'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
-                    ),
-                  )
-                ],
-              ),
-            );
+            return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.article_outlined, size: 48, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              const Text('작성된 일기가 없습니다.', style: bodyText1),
+              const SizedBox(height: 4),
+              const Text('새로운 여행 기록을 추가해보세요.', style: bodyText2),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () => _showCreateTripPopup(context, ref),
+                icon: const Icon(Icons.add),
+                label: const Text('일기 쓰기'),
+                style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white),
+              )
+            ],),);
           }
-          // ListView 및 카드 디자인 적용
+          // ListView 및 카드 디자인
           return RefreshIndicator(
             onRefresh: () async {
-              await ref.read(tripRecordsProvider.notifier).build();
+              // --- await 추가 (경고 수정) ---
+              await ref.refresh(tripRecordsProvider.future);
             },
             child: ListView.builder(
-              padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 80), // FAB 고려 하단 패딩
+              padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 80),
               itemCount: records.length,
               itemBuilder: (context, index) {
-                final TripRecord record = records[index]; // 타입 명시
+                final TripRecord record = records[index];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12.0),
                   elevation: 1.5,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
-                    onTap: () { // 상세 화면 이동
+                    onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => TripRecordDetailScreen(recordId: record.id),
-                        ),
-                      ).then((result) {
-                        // 상세 화면에서 변경 시 목록 갱신 (선택적)
-                        // if (result == true) {
-                        //   ref.invalidate(tripRecordsProvider);
-                        // }
-                      });
+                        MaterialPageRoute(builder: (context) => TripRecordDetailScreen(recordId: record.id)),
+                      );
                     },
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 이미지
                         SizedBox(
                           width: 100, height: 100,
                           child: record.photoUrls.isNotEmpty
-                              ? Image.network(
-                            _toAbsoluteUrl(record.photoUrls.first),
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) =>
-                            loadingProgress == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(color: Colors.grey[200], child: const Icon(Icons.broken_image_outlined, color: Colors.grey)),
+                              ? Image.network(_toAbsoluteUrl(record.photoUrls.first), fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) => loadingProgress == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                            errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[200], child: const Icon(Icons.broken_image_outlined, color: Colors.grey)),
                           )
-                              : Container(
-                            color: Colors.grey[200],
-                            child: const Icon(Icons.image_not_supported_outlined, color: Colors.grey, size: 40),
-                          ),
+                              : Container(color: Colors.grey[200], child: const Icon(Icons.image_not_supported_outlined, color: Colors.grey, size: 40)),
                         ),
-                        // 텍스트 정보
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.all(12.0),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  record.title,
-                                  style: heading2.copyWith(fontSize: 16),
-                                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                                ),
+                                Text(record.title, style: heading2.copyWith(fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
                                 const SizedBox(height: 4),
-                                Text(
-                                  DateFormat('yyyy년 MM월 dd일 EEEE', 'ko_KR').format(record.date), // 날짜 형식 변경
-                                  style: bodyText2.copyWith(fontSize: 12),
-                                ),
+                                Text(DateFormat('yyyy년 MM월 dd일 EEEE', 'ko_KR').format(record.date), style: bodyText2.copyWith(fontSize: 12)),
                                 const SizedBox(height: 6),
-                                Text(
-                                  record.content.isEmpty ? '(내용 없음)' : record.content,
-                                  style: bodyText2,
-                                  maxLines: 2, overflow: TextOverflow.ellipsis,
-                                ),
-                                // 그룹 정보 (필요 시 추가)
-                                // if (record.group != null) ...[ ],
+                                Text(record.content.isEmpty ? '(내용 없음)' : record.content, style: bodyText2, maxLines: 2, overflow: TextOverflow.ellipsis),
                               ],
                             ),
                           ),

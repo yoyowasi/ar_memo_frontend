@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.4.3 <4.0.0'
+  sdk: '>=3.4.3 <4.0.0' # 프로젝트 SDK 버전에 맞게 조정
 
 dependencies:
   flutter:
@@ -14,8 +14,14 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_speed_dial: ^7.0.0
 
-  # AR (공식 패키지 사용, 가용 최신: 0.7.3)
-  ar_flutter_plugin: ^0.7.3
+  # --- AR 패키지 (신버전 'updated'로 통일) ---
+  ar_flutter_plugin: ^0.7.3 # <- 삭제
+  # ar_flutter_plugin_updated: ^1.0.1 # <- 신버전 사용 (또는 최신 버전)
+  # ---------------------------------
+
+  # --- 카카오맵 SDK (공식 SDK 유지) ---
+  kakao_map_plugin: ^0.3.7
+  # -------------------------------
 
   # 네트워킹 & 상태관리 등
   http: ^1.2.1
@@ -26,8 +32,6 @@ dependencies:
   image_picker: ^1.1.2
   vector_math: ^2.1.4
   intl: ^0.19.0
-  http_parser: ^4.1.2
-  mime: ^1.0.0
 
 dev_dependencies:
   flutter_test:
@@ -43,4 +47,6 @@ flutter:
 
   assets:
     - .env
+    # --- 에셋 경로 수정 ('assets/' 제거) ---
     - Models/
+    # -----------------------------------

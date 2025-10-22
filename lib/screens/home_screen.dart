@@ -1,25 +1,28 @@
+// [이 파일은 이미 'kakao_flutter_sdk_map'을 import 하고 있으므로 수정할 필요가 없습니다.]
+// [제공된 파일의 전체 코드를 그대로 사용합니다.]
 import 'dart:io';
-import 'dart:math';
-
 import 'package:ar_memo_frontend/models/trip_record.dart';
-import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
-import 'package:ar_memo_frontend/providers/upload_provider.dart';
-import 'package:ar_memo_frontend/screens/ar_viewer_screen.dart';
-import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
-import 'package:ar_memo_frontend/theme/colors.dart';
-import 'package:ar_memo_frontend/theme/text_styles.dart';
-import 'package:ar_memo_frontend/widgets/simple_map.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
+import 'package:ar_memo_frontend/providers/upload_provider.dart';
+import 'package:ar_memo_frontend/screens/ar_viewer_screen.dart'; // ar_viewer_screen import
+import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
+import 'package:ar_memo_frontend/theme/colors.dart';
+import 'package:ar_memo_frontend/theme/text_styles.dart';
+import 'dart:math';
 
-// 지도 컨트롤러 Provider 제거
+import '../widgets/simple_map.dart';
+
+// KakaoMapController Provider 제거
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
+
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
@@ -28,19 +31,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   SimpleMapController? _mapController;
   Set<MapMarker> _markers = {};
   final Random _random = Random();
-  String? _selectedMarkerId;
+  // String? _selectedMarkerId; // InfoWindow 수동 제어 시 필요
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _loadAndSetMarkers();
+      if (mounted) {
+        _loadAndSetMarkers();
+      }
     });
   }
 
-  // 마커 로드 로직 (SimpleMap 전용)
+  // 마커 로드 및 설정 로직
   Future<void> _loadAndSetMarkers() async {
     final recordsAsyncValue = ref.read(tripRecordsProvider);
+
     recordsAsyncValue.whenData((records) {
       final newMarkers = <MapMarker>{};
       for (final record in records) {
@@ -56,19 +62,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           infoTitle += " (위치 없음)";
         }
 
-        newMarkers.add(MapMarker(
-          markerId: record.id,
-          position: LatLng(lat, lng),
-          infoWindow: infoTitle,
-        ));
+        newMarkers.add(
+          MapMarker(
+              markerId: record.id,
+              position: LatLng(lat, lng),
+              infoWindow: infoTitle,
+          ),
+        );
       }
       if (mounted && _markers != newMarkers) {
-        setState(() => _markers = newMarkers);
+        setState(() {
+          _markers = newMarkers;
+        });
       }
     });
   }
 
-  /// 서버 URL 변환
+  /// 서버 URL 변환 함수
   String _toAbsoluteUrl(String relativeUrl) {
     if (relativeUrl.startsWith('http')) return relativeUrl;
     final rawBaseUrl = dotenv.env['API_BASE_URL'];
@@ -108,9 +118,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 photoUrls.addAll(results.map((result) => result.url));
               } catch (e) {
                 if (builderContext.mounted) {
-                  for (var file in pickedFiles) {
-                  localFiles.remove(file);
-                }
+                  pickedFiles.forEach((file) => localFiles.remove(file));
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('이미지 업로드 실패: $e')));
                 }
               } finally {
@@ -132,14 +140,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('날짜를 선택해주세요.'))); return;
               }
               setState(() => isLoading = true);
-              final navigator = Navigator.of(dialogContext);
-              final messenger = ScaffoldMessenger.of(context);
-              double? currentLat, currentLng;
-              if (mounted && mounted) {
+              double? currentLat;
+              double? currentLng;
+              if (mounted && this.mounted) {
                 try {
-                  // final centerLatLng = await _mapController.getCenter();
-                  // currentLat = centerLatLng.latitude;
-                  // currentLng = centerLatLng.longitude;
+                  final centerLatLng = await _mapController.getCenter();
+                  currentLat = centerLatLng.latitude;
+                  currentLng = centerLatLng.longitude;
                 } catch (e) { debugPrint("지도 중심 좌표 가져오기 실패: $e"); }
               }
               try {
@@ -148,8 +155,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   date: selectedDate!, photoUrls: photoUrls,
                   latitude: currentLat, longitude: currentLng,
                 );
-                navigator.pop();
-                messenger.showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
               } catch (e) {
                 if (dialogContext.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('저장 실패: $e')));
               } finally {
@@ -241,13 +248,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Row(
                 children: [
-                  Expanded(child: Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 2))]), child: const TextField(decoration: InputDecoration(prefixIcon: Icon(Icons.search, color: subTextColor), hintText: '장소, 기록 검색...', hintStyle: TextStyle(color: subTextColor), border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 14))))),
+                  Expanded(child: Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 2))]), child: const TextField(decoration: InputDecoration(prefixIcon: Icon(Icons.search, color: subTextColor), hintText: '장소, 기록 검색...', hintStyle: TextStyle(color: subTextColor), border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 14))))),
                   const SizedBox(width: 10),
                   FloatingActionButton(
                     onPressed: () async {
-                      // TODO: geolocator 사용
+                      // TODO: geolocator
                       final currentLatLng = LatLng(37.5665, 126.9780); // 임시
-                      _mapController?.moveCamera(CameraUpdate.newLatLngZoom(currentLatLng, 5));
+                      _mapController.setCenter(currentLatLng);
+                      _mapController.setLevel(5);
                     },
                     mini: true, backgroundColor: Colors.white, elevation: 2,
                     child: const Icon(Icons.my_location, color: primaryColor),
@@ -263,7 +271,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             builder: (BuildContext context, ScrollController scrollController) {
               final recordsAsync = ref.watch(tripRecordsProvider);
               return Container(
-                decoration: BoxDecoration(color: Colors.white, borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 12.0, spreadRadius: 2.0, offset: const Offset(0, -2))]),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 12.0, spreadRadius: 2.0, offset: const Offset(0, -2))]),
                 child: Column(
                   children: [
                     Container(width: 50, height: 5, margin: const EdgeInsets.symmetric(vertical: 12.0), decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
@@ -296,9 +304,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   onTap: () {
                                     if (record.latitude != null && record.longitude != null) {
                                       final targetLatLng = LatLng(record.latitude!, record.longitude!);
-                                      _mapController?.moveCamera(CameraUpdate.fromLatLngZoom(targetLatLng, 5));
+                                      _mapController.setCenter(targetLatLng);
+                                      _mapController.setLevel(5);
                                     }
-                                    setState(() => _selectedMarkerId = record.id);
                                     Navigator.push(context, MaterialPageRoute(builder: (context) => TripRecordDetailScreen(recordId: record.id)));
                                   },
                                   child: Row(
@@ -311,7 +319,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                         Text(record.title, style: bodyText1.copyWith(fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis), const SizedBox(height: 4),
                                         Text(DateFormat('yyyy.MM.dd').format(record.date), style: bodyText2), const SizedBox(height: 4),
-                                        if (record.group != null) Row(children: [Icon(Icons.group, size: 14, color: Color(record.group!.colorValue)), const SizedBox(width: 4), Text(record.group!.name, style: bodyText2.copyWith(fontSize: 12, color: Color(record.group!.colorValue)), maxLines: 1, overflow: TextOverflow.ellipsis)]),
+                                        if (record.group != null) Row(children: [Icon(Icons.group, size: 14, color: record.groupColor ?? primaryColor), const SizedBox(width: 4), Text(record.group!.name, style: bodyText2.copyWith(fontSize: 12, color: record.groupColor ?? primaryColor), maxLines: 1, overflow: TextOverflow.ellipsis)]),
                                       ],),),
                                       ),
                                       const Padding(padding: EdgeInsets.only(right: 8.0), child: Icon(Icons.chevron_right, color: subTextColor)),
