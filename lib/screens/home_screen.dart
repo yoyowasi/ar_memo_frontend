@@ -1,22 +1,22 @@
 import 'dart:io';
+import 'dart:math';
+
 import 'package:ar_memo_frontend/models/trip_record.dart';
+import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
+import 'package:ar_memo_frontend/providers/upload_provider.dart';
+import 'package:ar_memo_frontend/screens/ar_viewer_screen.dart';
+import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
+import 'package:ar_memo_frontend/theme/colors.dart';
+import 'package:ar_memo_frontend/theme/text_styles.dart';
+import 'package:ar_memo_frontend/widgets/simple_map.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:kakao_map_sdk/kakao_map_sdk.dart';
-// -----------------
-import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
-import 'package:ar_memo_frontend/providers/upload_provider.dart';
-import 'package:ar_memo_frontend/screens/ar_viewer_screen.dart'; // ar_viewer_screen import
-import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
-import 'package:ar_memo_frontend/theme/colors.dart';
-import 'package:ar_memo_frontend/theme/text_styles.dart';
-import 'dart:math';
 
-// KakaoMapController Provider 제거
+// 지도 컨트롤러 Provider 제거
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -25,10 +25,10 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  late KakaoMapController _mapController; // MapController 사용
-  Set<Marker> _markers = {};
+  SimpleMapController? _mapController;
+  Set<MapMarker> _markers = {};
   final Random _random = Random();
-  String? _selectedMarkerId; // 선택된 마커 ID (InfoWindow 표시용)
+  String? _selectedMarkerId;
 
   @override
   void initState() {
@@ -38,11 +38,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
   }
 
-  // 마커 로드 로직 (kakao_flutter_sdk_map API)
+  // 마커 로드 로직 (SimpleMap 전용)
   Future<void> _loadAndSetMarkers() async {
     final recordsAsyncValue = ref.read(tripRecordsProvider);
     recordsAsyncValue.whenData((records) {
-      final newMarkers = <Marker>{};
+      final newMarkers = <MapMarker>{};
       for (final record in records) {
         double? lat, lng;
         String infoTitle = record.title;
@@ -56,17 +56,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           infoTitle += " (위치 없음)";
         }
 
-        newMarkers.add(Marker(
-            markerId: record.id,
-            latLng: LatLng(lat, lng),
-            // markerImageSrc: '...', // 커스텀 마커 이미지
-            infoWindowContent: infoTitle, // InfoWindow 텍스트
-            onTap: () { // 마커 탭 시 상세 화면 이동
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => TripRecordDetailScreen(recordId: record.id)),
-              );
-            }
+        newMarkers.add(MapMarker(
+          markerId: record.id,
+          position: LatLng(lat, lng),
+          infoWindow: infoTitle,
         ));
       }
       if (mounted && _markers != newMarkers) {
@@ -217,23 +210,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: Stack(
         children: [
-          // KakaoMap 위젯 (공식 SDK)
-          KakaoMap(
+          // 간단한 2D 지도 위젯
+          SimpleMap(
             onMapCreated: (controller) {
               _mapController = controller;
               _loadAndSetMarkers();
             },
             markers: _markers.toList(),
-            onMarkerTap: (markerId, latLng, zoomLevel) {
-              debugPrint('[onMarkerTap] markerId $markerId / $latLng');
-              // InfoWindow를 탭했을 때가 아니라, 마커 자체를 탭했을 때
-              // _mapController.showInfoWindow(markerId); // InfoWindow 표시 (API 확인 필요)
+            selectedMarkerId: _selectedMarkerId,
+            onMarkerTap: (markerId, position, zoomLevel) {
+              setState(() => _selectedMarkerId = markerId);
             },
-            onInfoWindowTap: (markerId, latLng) { // InfoWindow 탭 이벤트
-              debugPrint('[onInfoWindowTap] markerId $markerId');
-              Navigator.push(context, MaterialPageRoute(builder: (context) => TripRecordDetailScreen(recordId: markerId)));
+            onInfoWindowTap: (markerId, position) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => TripRecordDetailScreen(recordId: markerId)),
+              );
             },
-            center: LatLng(37.5665, 126.9780),
+            center: const LatLng(37.5665, 126.9780),
             currentLevel: 7,
           ),
 
@@ -243,13 +237,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Row(
                 children: [
-                  Expanded(child: Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 2))]), child: const TextField(decoration: InputDecoration(prefixIcon: Icon(Icons.search, color: subTextColor), hintText: '장소, 기록 검색...', hintStyle: TextStyle(color: subTextColor), border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 14))))),
+                  Expanded(child: Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 2))]), child: const TextField(decoration: InputDecoration(prefixIcon: Icon(Icons.search, color: subTextColor), hintText: '장소, 기록 검색...', hintStyle: TextStyle(color: subTextColor), border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 14))))),
                   const SizedBox(width: 10),
                   FloatingActionButton(
                     onPressed: () async {
                       // TODO: geolocator 사용
                       final currentLatLng = LatLng(37.5665, 126.9780); // 임시
-                      _mapController.moveCamera(CameraUpdate.newLatLngZoom(currentLatLng, 5));
+                      _mapController?.moveCamera(CameraUpdate.newLatLngZoom(currentLatLng, 5));
                     },
                     mini: true, backgroundColor: Colors.white, elevation: 2,
                     child: const Icon(Icons.my_location, color: primaryColor),
@@ -265,7 +259,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             builder: (BuildContext context, ScrollController scrollController) {
               final recordsAsync = ref.watch(tripRecordsProvider);
               return Container(
-                decoration: BoxDecoration(color: Colors.white, borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 12.0, spreadRadius: 2.0, offset: const Offset(0, -2))]),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 12.0, spreadRadius: 2.0, offset: const Offset(0, -2))]),
                 child: Column(
                   children: [
                     Container(width: 50, height: 5, margin: const EdgeInsets.symmetric(vertical: 12.0), decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
@@ -298,8 +292,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   onTap: () {
                                     if (record.latitude != null && record.longitude != null) {
                                       final targetLatLng = LatLng(record.latitude!, record.longitude!);
-                                      _mapController.moveCamera(CameraUpdate.fromLatLngZoom(targetLatLng, 5));
+                                      _mapController?.moveCamera(CameraUpdate.fromLatLngZoom(targetLatLng, 5));
                                     }
+                                    setState(() => _selectedMarkerId = record.id);
                                     Navigator.push(context, MaterialPageRoute(builder: (context) => TripRecordDetailScreen(recordId: record.id)));
                                   },
                                   child: Row(

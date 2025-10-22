@@ -43,7 +43,7 @@ class _MainScreenState extends State<MainScreen> {
           border: Border(top: BorderSide(color: Colors.grey[200]!, width: 0.5)), // 연한 회색 경계선
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, -2), // 위쪽으로 그림자
             ),

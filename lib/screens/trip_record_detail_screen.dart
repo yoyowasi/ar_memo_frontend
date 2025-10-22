@@ -78,11 +78,11 @@ class TripRecordDetailScreen extends ConsumerWidget {
                 flexibleSpace: FlexibleSpaceBar(
                   titlePadding: const EdgeInsets.symmetric(horizontal: 56, vertical: 12),
                   centerTitle: false,
-                  title: Text(record.title, style: heading2.copyWith(color: Colors.white, shadows: [Shadow(blurRadius: 2, color: Colors.black.withOpacity(0.5))]), maxLines: 1, overflow: TextOverflow.ellipsis), // 그림자 추가
+                  title: Text(record.title, style: heading2.copyWith(color: Colors.white, shadows: [Shadow(blurRadius: 2, color: Colors.black.withValues(alpha: 0.5))]), maxLines: 1, overflow: TextOverflow.ellipsis), // 그림자 추가
                   background: record.photoUrls.isNotEmpty
                       ? Stack(fit: StackFit.expand, children: [
                     Image.network(_toAbsoluteUrl(record.photoUrls.first), fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: mutedSurfaceColor, child: const Center(child: Icon(Icons.broken_image_outlined, color: subTextColor)))),
-                    DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black.withOpacity(0.1), Colors.black.withOpacity(0.5)], stops: const [0.5, 0.7, 1.0]))),
+                    DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black.withValues(alpha: 0.1), Colors.black.withValues(alpha: 0.5)], stops: const [0.5, 0.7, 1.0]))),
                   ],)
                       : Container(color: mutedSurfaceColor, child: const Center(child: Icon(Icons.image_not_supported_outlined, color: subTextColor, size: 60))),
                   stretchModes: const [StretchMode.zoomBackground],

@@ -1,16 +1,13 @@
-// --- import 수정 ('ar_flutter_plugin' (구버전) 사용) ---
-import 'package:ar_flutter_plugin/ar_flutter_plugin.dart' as ar_plugin;
-import 'package:ar_flutter_plugin/datatypes/config_planedetection.dart' as ar_plugin_datatypes;
-import 'package:ar_flutter_plugin/datatypes/node_types.dart' as ar_plugin_node_types;
+import 'package:ar_flutter_plugin/ar_flutter_plugin.dart';
+import 'package:ar_flutter_plugin/datatypes/config_planedetection.dart';
+import 'package:ar_flutter_plugin/datatypes/node_types.dart';
 import 'package:ar_flutter_plugin/managers/ar_anchor_manager.dart';
 import 'package:ar_flutter_plugin/managers/ar_location_manager.dart';
 import 'package:ar_flutter_plugin/managers/ar_object_manager.dart';
 import 'package:ar_flutter_plugin/managers/ar_session_manager.dart';
-import 'package:ar_flutter_plugin/models/ar_anchor.dart'; // ARAnchor 추가
-import 'package:ar_flutter_plugin/models/ar_hittest_result.dart' as ar_plugin_hittest;
-import 'package:ar_flutter_plugin/models/ar_node.dart' as ar_plugin_node;
-import 'package:ar_flutter_plugin/models/ar_material.dart' as ar_plugin_material; // ARMaterial 추가
-// ----------------------------------------------------
+import 'package:ar_flutter_plugin/models/ar_anchor.dart';
+import 'package:ar_flutter_plugin/models/ar_hittest_result.dart';
+import 'package:ar_flutter_plugin/models/ar_node.dart';
 
 import 'package:ar_memo_frontend/models/memory.dart';
 import 'package:ar_memo_frontend/providers/memory_provider.dart';
@@ -30,7 +27,7 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
   ARObjectManager? arObjectManager;
   ARAnchorManager? arAnchorManager;
 
-  final Map<String, ar_plugin.ARNode> _loadedNodes = {};
+  final Map<String, ARNode> _loadedNodes = {};
 
   @override
   void initState() {
@@ -39,11 +36,11 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
 
   // ARView 생성 콜백 (ar_flutter_plugin API)
   void onARViewCreated(
-      ARSessionManager sessionManager,
-      ARObjectManager objectManager,
-      ARAnchorManager anchorManager,
-      ARLocationManager locationManager,
-      ) {
+    ARSessionManager sessionManager,
+    ARObjectManager objectManager,
+    ARAnchorManager anchorManager,
+    ARLocationManager locationManager,
+  ) {
     arSessionManager = sessionManager;
     arObjectManager = objectManager;
     arAnchorManager = anchorManager;
@@ -54,8 +51,7 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
       customPlaneTexturePath: null,
       showWorldOrigin: false,
       handleTaps: true,
-      // --- 'planeDetectionConfig' 파라미터가 이 위치에 있음 ---
-      // planeDetectionConfig: ar_plugin_datatypes.PlaneDetectionConfig.horizontalAndVertical,
+      planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical,
     );
     arObjectManager!.onInitialize();
 
@@ -74,7 +70,7 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
 
     memoriesAsyncValue.whenData((memories) {
       if (arObjectManager == null || !mounted) return;
-      final currentNodes = Map<String, ar_plugin.ARNode>.from(_loadedNodes);
+      final currentNodes = Map<String, ARNode>.from(_loadedNodes);
       final newNodes = <String>{};
 
       for (final memory in memories) {
@@ -105,14 +101,14 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
   }
 
   // 메모리 노드 추가
-  Future<ar_plugin.ARNode> _addMemoryNode(Memory memory, vector.Matrix4 transform, String nodeName) async {
+  Future<ARNode> _addMemoryNode(Memory memory, vector.Matrix4 transform, String nodeName) async {
     // --- 'ar_flutter_plugin' API에 맞게 ARNode 생성 ---
     // (uri 경로 수정, transform 파라미터 사용)
-    final node = ar_plugin_node.ARNode(
-      type: ar_plugin_node_types.NodeType.localGLTF2,
+    final node = ARNode(
+      type: NodeType.localGLTF2,
       uri: "Models/frame.glb", // pubspec.yaml assets 경로와 일치
       scale: vector.Vector3(0.2, 0.2, 0.2),
-      transform: transform, // 'transformation' -> 'transform'
+      transformation: transform,
       name: nodeName,
       // materials: [ ... ], // GLTF 모델은 자체 재질 사용
     );
@@ -129,8 +125,8 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
     final singleHit = results.firstWhere(
       // --- 'point' -> 'featurePoint'로 수정 (ar_flutter_plugin API) ---
           (hit) =>
-      hit.type == ar_plugin_hittest.ARHitTestResultType.plane ||
-          hit.type == ar_plugin_hittest.ARHitTestResultType.featurePoint,
+      hit.type == ARHitTestResultType.plane ||
+          hit.type == ARHitTestResultType.featurePoint,
       // ---------------------------------------------------------
       orElse: () => results.first,
     );
@@ -145,17 +141,12 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
 
   // --- 임시 큐브 추가 함수 (ar_flutter_plugin API) ---
   Future<void> _addTempCube(vector.Matrix4 transform) async {
-    final node = ar_plugin_node.ARNode(
-        type: ar_plugin_node_types.NodeType.cube, // 큐브 타입
-        name: "temp_cube_${DateTime.now().millisecondsSinceEpoch}",
-        transform: transform,
-        scale: vector.Vector3(0.05, 0.05, 0.05), // 크기 작게
-        // materials: [ // 재질 설정
-        //   ar_plugin_material.ARMaterial(
-        //     color: Colors.amber.withOpacity(0.8),
-        //     metallic: 0.8,
-        //   )
-        // ]);
+    final node = ARNode(
+      type: NodeType.cube,
+      name: "temp_cube_${DateTime.now().millisecondsSinceEpoch}",
+      transformation: transform,
+      scale: vector.Vector3(0.05, 0.05, 0.05),
+    );
     await arObjectManager?.addNode(node);
   }
   // --- 함수 추가 끝 ---
@@ -163,10 +154,8 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
 
   @override
   void dispose() {
-    // --- arObjectManager.dispose() 추가 (ar_flutter_plugin API) ---
     arSessionManager?.dispose();
-    // arObjectManager?.dispose();
-    // -------------------------------------------------------
+    arObjectManager?.dispose();
     super.dispose();
   }
 
@@ -187,7 +176,7 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
         actions: [IconButton(icon: const Icon(Icons.refresh, color: Colors.white), onPressed: _loadAndDisplayMemories)],
       ),
       extendBodyBehindAppBar: true,
-      body: ar_plugin.ARView(
+      body: ARView(
         onARViewCreated: onARViewCreated,
         // planeDetectionConfig는 onARViewCreated 내부의 onInitialize에서 설정
       ),
