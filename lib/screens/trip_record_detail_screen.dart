@@ -13,7 +13,18 @@ class TripRecordDetailScreen extends ConsumerWidget {
   const TripRecordDetailScreen({super.key, required this.recordId});
 
   /// 서버 URL 변환 함수
-  String _toAbsoluteUrl(String relativeUrl) { /* ... 이전과 동일 ... */ }
+  String _toAbsoluteUrl(String relativeUrl) {
+    if (relativeUrl.startsWith('http')) return relativeUrl;
+    final rawBaseUrl = dotenv.env['API_BASE_URL'];
+    if (rawBaseUrl == null || rawBaseUrl.isEmpty) {
+      debugPrint("Warning: API_BASE_URL is not set in .env file.");
+      return relativeUrl;
+    }
+    final baseUrl = rawBaseUrl.endsWith('/')
+        ? rawBaseUrl.substring(0, rawBaseUrl.length - 1)
+        : rawBaseUrl;
+    return '$baseUrl$relativeUrl';
+  }
 
   // 삭제 확인 다이얼로그
   void _deleteRecord(BuildContext context, WidgetRef ref) { /* ... 이전과 동일 ... */ }
@@ -81,7 +92,7 @@ class TripRecordDetailScreen extends ConsumerWidget {
                           loadingBuilder: (context, child, loadingProgress) => loadingProgress == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
                           errorBuilder: (context, error, stackTrace) => Container(height: 200, color: mutedSurfaceColor, child: const Center(child: Icon(Icons.error_outline, color: subTextColor))),
                         ),),);
-                      }).toList(),
+                      }),
                     const SizedBox(height: 40),
                   ]),
                 ),

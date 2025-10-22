@@ -1,12 +1,10 @@
-import 'package:ar_memo_frontend/widgets/simple_map.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // dotenv import
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // --- import 수정 ---
 // import 'package:kakao_map_plugin/kakao_map_plugin.dart'; // <- 삭제
-import 'package:kakao_map_plugin/kakao_map_plugin.dart'; // <- kakao_flutter_sdk_map import
 // -----------------
-import 'package:ar_memo_frontend/models/group.dart';
+
 import 'package:ar_memo_frontend/providers/group_provider.dart';
 import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
@@ -40,17 +38,6 @@ class GroupDetailScreen extends ConsumerWidget {
     return Scaffold(
       body: Stack(
         children: [
-          // --- SimpleMap 위젯 ---
-          SimpleMap(
-            onMapCreated: (controller) {
-              // No controller needed for static map
-            },
-            markers: [], // No markers for now
-            center: const LatLng(37.5665, 126.9780), // TODO: 그룹 메모 기반 중심 좌표
-            currentLevel: 7,
-          ),
-          // --------------------
-
           // 상단 앱 바
           Positioned(
             top: 0, left: 0, right: 0,

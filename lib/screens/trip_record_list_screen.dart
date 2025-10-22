@@ -172,7 +172,7 @@ class TripRecordListScreen extends ConsumerWidget {
           return RefreshIndicator(
             onRefresh: () async {
               // --- await 추가 (경고 수정) ---
-              await ref.refresh(tripRecordsProvider.future);
+              final _ = await ref.refresh(tripRecordsProvider.future);
             },
             child: ListView.builder(
               padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 80),

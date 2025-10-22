@@ -1,7 +1,9 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-feature android:name="android.hardware.camera.ar" android:required="true"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -9,7 +11,6 @@
 
     <application
             android:label="ar_memo_frontend"
-            android:name="${applicationName}"
             android:icon="@mipmap/ic_launcher"
             android:usesCleartextTraffic="true"
             android:requestLegacyExternalStorage="true">
@@ -30,11 +31,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <intent-filter>
+            <intent-filter tools:ignore="AppLinkUrlError">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:host="kakaomap" android:scheme="kakao${KAKAO_NATIVE_APP_KEY_PLACEHOLDER}"/>
+                
             </intent-filter>
         </activity>
 
@@ -42,11 +43,9 @@
                 android:name="flutterEmbedding"
                 android:value="2" />
 
-        <meta-data
-                android:name="com.kakao.sdk.AppKey"
-                android:value="${KAKAO_NATIVE_APP_KEY_PLACEHOLDER}" />
+        
 
-        <meta-data android:name="com.google.ar.core" android:value="required" />
+        <meta-data android:name="com.google.ar.core" android:value="required" tools:replace="android:value"/>
 
     </application>
 </manifest>

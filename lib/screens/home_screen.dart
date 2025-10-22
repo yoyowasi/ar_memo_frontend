@@ -31,7 +31,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   SimpleMapController? _mapController;
   Set<MapMarker> _markers = {};
   final Random _random = Random();
-  // String? _selectedMarkerId; // InfoWindow 수동 제어 시 필요
+  String? _selectedMarkerId; // InfoWindow 수동 제어 시 필요
 
   @override
   void initState() {
@@ -144,9 +144,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               double? currentLng;
               if (mounted && this.mounted) {
                 try {
-                  final centerLatLng = await _mapController.getCenter();
-                  currentLat = centerLatLng.latitude;
-                  currentLng = centerLatLng.longitude;
+                  final centerLatLng = await _mapController?.getCenter();
+                  if (centerLatLng != null) {
+                    currentLat = centerLatLng.latitude;
+                    currentLng = centerLatLng.longitude;
+                  }
                 } catch (e) { debugPrint("지도 중심 좌표 가져오기 실패: $e"); }
               }
               try {
@@ -254,8 +256,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     onPressed: () async {
                       // TODO: geolocator
                       final currentLatLng = LatLng(37.5665, 126.9780); // 임시
-                      _mapController.setCenter(currentLatLng);
-                      _mapController.setLevel(5);
+                      _mapController?.moveCamera(CameraUpdate.newLatLngZoom(currentLatLng, 5));
                     },
                     mini: true, backgroundColor: Colors.white, elevation: 2,
                     child: const Icon(Icons.my_location, color: primaryColor),
@@ -304,8 +305,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   onTap: () {
                                     if (record.latitude != null && record.longitude != null) {
                                       final targetLatLng = LatLng(record.latitude!, record.longitude!);
-                                      _mapController.setCenter(targetLatLng);
-                                      _mapController.setLevel(5);
+                                      _mapController?.moveCamera(CameraUpdate.newLatLngZoom(targetLatLng, 5));
                                     }
                                     Navigator.push(context, MaterialPageRoute(builder: (context) => TripRecordDetailScreen(recordId: record.id)));
                                   },

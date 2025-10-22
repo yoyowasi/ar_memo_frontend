@@ -21,13 +21,13 @@ android {
         multiDexEnabled = true
     }
 
-    // ✅ AGP 8.x 권장: JDK 17
+    // ✅ AGP 8.x 권장: JDK 11 (kakao_map_plugin 호환)
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = "11"
     }
 
     // ✅ Debug: 축소 OFF / Release: 코드+리소스 축소 ON
@@ -78,4 +78,15 @@ dependencies {
     implementation("androidx.multidex:multidex:2.0.1")
     implementation("com.google.ar:core:1.33.0")
     implementation(kotlin("stdlib-jdk8"))
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    sourceCompatibility = "17"
+    targetCompatibility = "17"
 }

@@ -1,14 +1,14 @@
-import 'package:ar_flutter_plugin/ar_flutter_plugin.dart';
-import 'package:ar_flutter_plugin/datatypes/config_planedetection.dart';
-import 'package:ar_flutter_plugin/datatypes/node_types.dart';
-import 'package:ar_flutter_plugin/managers/ar_anchor_manager.dart';
-import 'package:ar_flutter_plugin/managers/ar_location_manager.dart';
-import 'package:ar_flutter_plugin/managers/ar_object_manager.dart';
-import 'package:ar_flutter_plugin/managers/ar_session_manager.dart';
-import 'package:ar_flutter_plugin/models/ar_anchor.dart';
-import 'package:ar_flutter_plugin/models/ar_hittest_result.dart';
-import 'package:ar_flutter_plugin/models/ar_node.dart';
-import 'package:ar_flutter_plugin/widgets/ar_view.dart';
+import 'package:ar_flutter_plugin_updated/ar_flutter_plugin.dart';
+import 'package:ar_flutter_plugin_updated/datatypes/config_planedetection.dart';
+import 'package:ar_flutter_plugin_updated/datatypes/node_types.dart';
+import 'package:ar_flutter_plugin_updated/managers/ar_anchor_manager.dart';
+import 'package:ar_flutter_plugin_updated/managers/ar_location_manager.dart';
+import 'package:ar_flutter_plugin_updated/managers/ar_object_manager.dart';
+import 'package:ar_flutter_plugin_updated/managers/ar_session_manager.dart';
+import 'package:ar_flutter_plugin_updated/models/ar_anchor.dart';
+import 'package:ar_flutter_plugin_updated/models/ar_hittest_result.dart';
+import 'package:ar_flutter_plugin_updated/models/ar_node.dart';
+import 'package:ar_flutter_plugin_updated/widgets/ar_view.dart';
 import 'package:ar_memo_frontend/models/memory.dart';
 import 'package:ar_memo_frontend/providers/memory_provider.dart'; // Provider import
 import 'package:ar_memo_frontend/theme/text_styles.dart';
@@ -94,7 +94,7 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
       final node = ARNode(
         type: NodeType.localGLTF2,
         uri: "Models/frame.glb",
-        scale: vector.Vector3(0.2, 0.2, 0.2),
+        scale: vector.Vector3(0.2, 0.2, 0.2) as vector.Vector3?,
       );
       await arObjectManager?.addNode(node, planeAnchor: anchor);
     } else {
@@ -107,8 +107,8 @@ class _ArViewerScreenState extends ConsumerState<ArViewerScreen> {
 
     final singleHit = results.firstWhere(
           (hit) =>
-      hit.type == ARHitTestResultType.plane ||
-          hit.type == ARHitTestResultType.point,
+      hit.type.toString().contains('plane') ||
+          hit.type.toString().contains('point'),
       orElse: () => results.first,
     );
 

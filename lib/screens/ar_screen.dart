@@ -2,16 +2,16 @@
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math_64.dart' as vector;
 
-import 'package:ar_flutter_plugin/ar_flutter_plugin.dart';
-import 'package:ar_flutter_plugin/datatypes/config_planedetection.dart';
-import 'package:ar_flutter_plugin/datatypes/node_types.dart';
-import 'package:ar_flutter_plugin/managers/ar_anchor_manager.dart';
-import 'package:ar_flutter_plugin/managers/ar_location_manager.dart';
-import 'package:ar_flutter_plugin/managers/ar_object_manager.dart';
-import 'package:ar_flutter_plugin/managers/ar_session_manager.dart';
-import 'package:ar_flutter_plugin/models/ar_anchor.dart';
-import 'package:ar_flutter_plugin/models/ar_hittest_result.dart';
-import 'package:ar_flutter_plugin/models/ar_node.dart';
+import 'package:ar_flutter_plugin_updated/ar_flutter_plugin.dart';
+import 'package:ar_flutter_plugin_updated/datatypes/config_planedetection.dart';
+import 'package:ar_flutter_plugin_updated/datatypes/node_types.dart';
+import 'package:ar_flutter_plugin_updated/managers/ar_anchor_manager.dart';
+import 'package:ar_flutter_plugin_updated/managers/ar_location_manager.dart';
+import 'package:ar_flutter_plugin_updated/managers/ar_object_manager.dart';
+import 'package:ar_flutter_plugin_updated/managers/ar_session_manager.dart';
+import 'package:ar_flutter_plugin_updated/models/ar_anchor.dart';
+import 'package:ar_flutter_plugin_updated/models/ar_hittest_result.dart';
+import 'package:ar_flutter_plugin_updated/models/ar_node.dart';
 
 class ARScreen extends StatefulWidget {
   const ARScreen({super.key});
@@ -56,7 +56,7 @@ class _ARScreenState extends State<ARScreen> {
     final anchor = ARPlaneAnchor(transformation: hit.worldTransform);
     final didAddAnchor = await arAnchorManager.addAnchor(anchor);
     if (didAddAnchor != true) {
-      arSessionManager.onError.call('앵커 추가 실패');
+      arSessionManager.onError?.call('앵커 추가 실패');
       return;
     }
 
@@ -82,7 +82,7 @@ class _ARScreenState extends State<ARScreen> {
         const SnackBar(content: Text('여기에 메모를 추가합니다!')),
       );
     } else {
-      arSessionManager.onError.call('노드 추가 실패');
+      arSessionManager.onError?.call('노드 추가 실패');
     }
   }
 
