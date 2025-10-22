@@ -14,13 +14,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_speed_dial: ^7.0.0
 
-    # --- AR 패키지 (신버전 'updated'로 통일) ---
-  # ar_flutter_plugin: ^0.7.3 # <- 삭제
-  # ar_flutter_plugin_updated: ^1.0.1 # <- 신버전 사용 (또는 최신 버전)
-  # ---------------------------------
-
-  # --- 카카오맵 SDK (공식 SDK 유지) ---
-  # kakao_map_plugin: ^0.3.7 # Removed due to incompatibility
+  # --- 카카오맵 SDK ---
+  kakao_map_sdk: ^1.2.1 # kakao_map_plugin 대신 sdk 사용 (버전 확인 필요)
   # -------------------------------
 
   # 네트워킹 & 상태관리 등
@@ -32,14 +27,14 @@ dependencies:
   image_picker: ^1.1.2
   vector_math: ^2.1.4
   intl: ^0.19.0
-  ar_flutter_plugin_updated: ^0.0.1
+  ar_flutter_plugin_updated: ^0.0.1 # AR 기능 사용 시 필요
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
   build_runner: ^2.4.11
-  riverpod_generator: ^2.4.1
+  riverpod_generator: ^2.4.1 # 이전 버전 riverpod_generator: ^2.6.5 에서 변경됨
   riverpod_lint: ^2.6.5
   custom_lint: ^0.7.6
 

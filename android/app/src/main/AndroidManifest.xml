@@ -46,6 +46,8 @@
         
 
         <meta-data android:name="com.google.ar.core" android:value="required" tools:replace="android:value"/>
+        <!-- <meta-data android:name="com.google.android.geo.API_KEY" android:value="YOUR_GOOGLE_MAPS_API_KEY"/> -->
+        <meta-data android:name="com.kakao.sdk.AppKey" android:value="${KAKAO_NATIVE_APP_KEY}"/>
 
     </application>
 </manifest>
