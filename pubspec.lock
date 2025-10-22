@@ -608,22 +608,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.9.0"
-  kakao_flutter_sdk_common:
-    dependency: "direct main"
-    description:
-      name: kakao_flutter_sdk_common
-      sha256: "1c4944cc50c363d4626e9006ab39ee496c8f5ca602b96154272b90d40544aaca"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.9.7+3"
-  kakao_map_sdk:
-    dependency: "direct main"
-    description:
-      name: kakao_map_sdk
-      sha256: "3d63684da4175c51636a745c22f755286de19a7a7cce4d4adbfece42323895ed"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.2.1"
   leak_tracker:
     dependency: transitive
     description:

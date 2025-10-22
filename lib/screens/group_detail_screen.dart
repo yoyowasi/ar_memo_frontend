@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:kakao_map_plugin/kakao_map_plugin.dart'; // <- 삭제
 import 'package:ar_memo_frontend/models/group.dart';
 import 'package:ar_memo_frontend/providers/group_provider.dart';
-import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 
 class GroupDetailScreen extends ConsumerWidget {
@@ -23,7 +22,7 @@ class GroupDetailScreen extends ConsumerWidget {
         ),
       ),
       body: groupAsync.when(
-        data: (group) => ListView(
+        data: (Group group) => ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
             // --- 지도 위젯 제거 ---

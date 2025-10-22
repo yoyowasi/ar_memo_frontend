@@ -17,12 +17,6 @@ dependencies:
   # AR (공식 패키지 사용, 가용 최신: 0.7.3)
   ar_flutter_plugin: ^0.7.3
 
-  # Kakao 지도
-  kakao_map_sdk: ^1.2.1
-
-  # Kakao 공통 SDK (KakaoSdk.init 사용 시 필요)
-  kakao_flutter_sdk_common: ^1.9.6
-
   # 네트워킹 & 상태관리 등
   http: ^1.2.1
   flutter_dotenv: ^5.1.0
