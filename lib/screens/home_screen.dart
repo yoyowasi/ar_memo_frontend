@@ -14,7 +14,7 @@ import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'dart:math';
 
-import 'package:kakao_flutter_sdk_map/kakao_flutter_sdk_map.dart';
+import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -24,9 +24,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  MapController? _mapController; // Kakao 지도 컨트롤러
+  KakaoMapController? _mapController; // Kakao 지도 컨트롤러
 
-  Set<Marker> _markers = {}; // Marker 타입 사용
+  List<Marker> _markers = []; // Marker 리스트 사용
   final Random _random = Random();
   String? _selectedMarkerId;
 
@@ -48,7 +48,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final recordsAsyncValue = ref.read(tripRecordsProvider);
 
     recordsAsyncValue.whenData((records) {
-      final newMarkers = <Marker>{};
+      final newMarkers = <Marker>[];
       _markerInfoWindows.clear();
 
       for (final record in records) {
@@ -69,7 +69,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Marker(
             markerId: markerId,
             latLng: LatLng(lat, lng),
-            infoWindowContent: infoTitle,
+            infoWindow: InfoWindow(content: infoTitle),
           ),
         );
         _markerInfoWindows[markerId] = infoTitle;
@@ -266,7 +266,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
             center: LatLng(37.5665, 126.9780),
             currentLevel: 7,
-            markers: _markers.toList(),
+            markers: _markers,
 
             onMarkerTap: (String markerId, LatLng latLng, int zoomLevel) {
               setState(() {
