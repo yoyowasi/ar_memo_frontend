@@ -14,7 +14,7 @@ import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'dart:math';
 
-import 'package:kakao_flutter_sdk_map/kakao_flutter_sdk_map.dart';
+import 'package:kakao_map_plugin/kakao_map_plugin.dart' as kakao;
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -24,9 +24,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  MapController? _mapController; // Kakao 지도 컨트롤러
+  kakao.KakaoMapController? _mapController; // Kakao 지도 컨트롤러
 
-  Set<Marker> _markers = {}; // Marker 타입 사용
+  Set<kakao.Marker> _markers = {}; // Marker 집합 사용
   final Random _random = Random();
   String? _selectedMarkerId;
 
@@ -48,7 +48,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final recordsAsyncValue = ref.read(tripRecordsProvider);
 
     recordsAsyncValue.whenData((records) {
-      final newMarkers = <Marker>{};
+      final newMarkers = <kakao.Marker>{};
       _markerInfoWindows.clear();
 
       for (final record in records) {
@@ -66,10 +66,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
         final markerId = record.id;
         newMarkers.add(
-          Marker(
+          kakao.Marker(
             markerId: markerId,
-            latLng: LatLng(lat, lng),
-            infoWindowContent: infoTitle,
+            latLng: kakao.LatLng(lat, lng),
           ),
         );
         _markerInfoWindows[markerId] = infoTitle;
@@ -162,7 +161,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               // 컨트롤러가 준비되었는지 확인 후 getCenter 호출
               if (_mapController != null) {
                 try {
-                  final centerLatLng = await _mapController!.getCenter();
+                  final kakao.LatLng centerLatLng = await _mapController!.getCenter();
                   currentLat = centerLatLng.latitude;
                   currentLng = centerLatLng.longitude;
                 } catch (e) {
@@ -258,17 +257,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: Stack(
         children: [
-          KakaoMap(
+          kakao.KakaoMap(
             onMapCreated: (controller) {
               _mapController = controller;
               debugPrint("Map controller is created.");
               _loadAndSetMarkersFromProvider();
             },
-            center: LatLng(37.5665, 126.9780),
+            center: kakao.LatLng(37.5665, 126.9780),
             currentLevel: 7,
-            markers: _markers.toList(),
+            markers: Set<kakao.Marker>.from(_markers),
 
-            onMarkerTap: (String markerId, LatLng latLng, int zoomLevel) {
+            onMarkerTap: (String markerId, kakao.LatLng latLng, int zoomLevel) {
               setState(() {
                 _selectedMarkerId = markerId;
                 ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -290,7 +289,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               });
               debugPrint('Marker Tapped: $markerId at $latLng');
             },
-            onMapTap: (LatLng latLng) {
+            onMapTap: (kakao.LatLng latLng) {
               if (_selectedMarkerId != null) {
                 setState(() {
                   _selectedMarkerId = null;
@@ -312,7 +311,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   FloatingActionButton(
                     onPressed: () async {
                       // TODO: geolocator
-                      final currentLatLng = LatLng(37.5665, 126.9780);
+                      final currentLatLng = kakao.LatLng(37.5665, 126.9780);
                       _mapController?.setCenter(currentLatLng);
                       _mapController?.setLevel(5);
                     },
@@ -363,7 +362,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 child: InkWell(
                                   onTap: () {
                                     if (record.latitude != null && record.longitude != null) {
-                                      final targetLatLng = LatLng(record.latitude!, record.longitude!);
+                                      final targetLatLng = kakao.LatLng(record.latitude!, record.longitude!);
                                       _mapController?.setCenter(targetLatLng);
                                       _mapController?.setLevel(5);
                                       // 마커 선택 및 스낵바 표시
