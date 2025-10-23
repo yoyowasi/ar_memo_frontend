@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // dotenv import
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// kakao_map_sdk import 불필요
-// import 'package:kakao_map_sdk/kakao_map_sdk.dart' as kakao_map_sdk; // Alias for clarity
 
 import 'package:ar_memo_frontend/providers/group_provider.dart';
 import 'package:ar_memo_frontend/providers/memory_provider.dart';

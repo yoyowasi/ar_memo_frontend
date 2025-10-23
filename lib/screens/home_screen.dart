@@ -1,4 +1,3 @@
-import 'dart:async'; // Completer 사용 위해 추가
 import 'dart:io'; // Image.file 사용 위해 추가
 import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:flutter/material.dart';
@@ -15,7 +14,7 @@ import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'dart:math';
 
-import 'package:kakao_map_sdk/kakao_map_sdk.dart';
+import 'package:kakao_flutter_sdk_map/kakao_flutter_sdk_map.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -25,10 +24,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  // KakaoMapController는 ^1.2.1 버전에 없음 -> Completer로 대체하여 비동기 처리
-  final Completer<KakaoMapController> _controllerCompleter = Completer();
-  // KakaoMapController 타입 대신 dynamic 또는 KakaoMapController (의존성 추가 후) 사용 고려
-  KakaoMapController? _mapController; // 실제 컨트롤러 인스턴스 저장용
+  MapController? _mapController; // Kakao 지도 컨트롤러
 
   Set<Marker> _markers = {}; // Marker 타입 사용
   final Random _random = Random();
@@ -47,12 +43,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
   }
 
-  // Provider로부터 데이터를 읽어와 마커 설정 (^1.2.1 API 기준)
+  // Provider로부터 데이터를 읽어와 마커 설정
   Future<void> _loadAndSetMarkersFromProvider() async {
     final recordsAsyncValue = ref.read(tripRecordsProvider);
 
     recordsAsyncValue.whenData((records) {
-      final newMarkers = <Marker>{}; // Set<Marker> 타입 사용
+      final newMarkers = <Marker>{};
       _markerInfoWindows.clear();
 
       for (final record in records) {
@@ -69,12 +65,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         }
 
         final markerId = record.id;
-        // Marker 클래스 생성자 사용
         newMarkers.add(
           Marker(
             markerId: markerId,
             latLng: LatLng(lat, lng),
-            // ^1.2.1 마커 생성자 옵션 확인 필요
+            infoWindowContent: infoTitle,
           ),
         );
         _markerInfoWindows[markerId] = infoTitle;
@@ -104,7 +99,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return '$baseUrl$relativeUrl';
   }
 
-  /// 일기 생성 팝업 (^1.2.1 getCenter 사용)
+  /// 일기 생성 팝업
   void _showCreateTripPopup(BuildContext context, WidgetRef ref) {
     final titleController = TextEditingController();
     final contentController = TextEditingController();
@@ -146,10 +141,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               );
               if (picked != null && picked != selectedDate) setState(() => selectedDate = picked);
             }
-            // submitRecord 함수 (^1.2.1 getCenter 사용)
+            // submitRecord 함수
             Future<void> submitRecord() async {
-              if (titleController.text.isEmpty) { /* ... */ }
-              if (selectedDate == null) { /* ... */ }
+              if (titleController.text.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('제목을 입력해주세요.')),
+                );
+                return;
+              }
+              if (selectedDate == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('날짜를 선택해주세요.')),
+                );
+                return;
+              }
               setState(() => isLoading = true);
               double? currentLat;
               double? currentLng;
@@ -157,12 +162,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               // 컨트롤러가 준비되었는지 확인 후 getCenter 호출
               if (_mapController != null) {
                 try {
-                  // ^1.2.1 에서는 getCenter 가 Future 가 아닐 수 있음 (문서 확인 필요)
-                  // final centerLatLng = await _mapController!.getCenter(); // Future 인 경우
-                  final centerLatLng = _mapController!.getCenter(); // Future 가 아닌 경우
+                  final centerLatLng = await _mapController!.getCenter();
                   currentLat = centerLatLng.latitude;
                   currentLng = centerLatLng.longitude;
-                } catch (e) { debugPrint("지도 중심 좌표 가져오기 실패: $e"); }
+                } catch (e) {
+                  debugPrint("지도 중심 좌표 가져오기 실패: $e");
+                }
               }
 
               try {
@@ -253,31 +258,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: Stack(
         children: [
-          // KakaoMap 위젯 (^1.2.1 API 기준)
           KakaoMap(
-            // onMapReady -> onMapCreated
-            onMapCreated: (controller) async {
-              // Completer 또는 직접 인스턴스 저장
+            onMapCreated: (controller) {
               _mapController = controller;
-              // _controllerCompleter.complete(controller); // Completer 사용 시
               debugPrint("Map controller is created.");
-              // 컨트롤러 준비 후 마커 로드
               _loadAndSetMarkersFromProvider();
             },
-            // initialCenter -> center
             center: LatLng(37.5665, 126.9780),
-            // initialLevel -> currentLevel
             currentLevel: 7,
-            // markers 파라미터에 상태(_markers) 전달
             markers: _markers.toList(),
 
-            // onMarkerTap -> onMarkerTap (파라미터 타입 확인 필요, ^1.2.1은 markerId만 전달할 수 있음)
-            onMarkerTap: (String markerId, LatLng latLng, int zoomLevel) { // ^1.2.1 파라미터에 맞춤
+            onMarkerTap: (String markerId, LatLng latLng, int zoomLevel) {
               setState(() {
                 _selectedMarkerId = markerId;
                 ScaffoldMessenger.of(context).hideCurrentSnackBar();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  // SnackBar 위젯 인자 전달
                   SnackBar(
                     content: Text(_markerInfoWindows[markerId] ?? '정보 없음'),
                     duration: const Duration(seconds: 3),
@@ -295,8 +290,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               });
               debugPrint('Marker Tapped: $markerId at $latLng');
             },
-            // onMapTap 은 동일
-            onMapTap: (LatLng latLng) { // 파라미터 타입 명시
+            onMapTap: (LatLng latLng) {
               if (_selectedMarkerId != null) {
                 setState(() {
                   _selectedMarkerId = null;
@@ -305,10 +299,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 });
               }
             },
-            // ^1.2.1 에 onCustomMarkerTap 없음
           ),
 
-          // 상단 검색 바 (CameraUpdate 수정)
+          // 상단 검색 바
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -320,14 +313,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     onPressed: () async {
                       // TODO: geolocator
                       final currentLatLng = LatLng(37.5665, 126.9780);
-                      // moveCamera 와 CameraUpdate.newCameraPosition 사용
-                      _mapController?.moveCamera(
-                        CameraUpdate.newCameraPosition( // newCameraPosition 사용
-                            CameraPosition(target: currentLatLng, zoom: 5) // CameraPosition 생성자 사용
-                        ),
-                        // ^1.2.1 moveCamera 에는 animation 파라미터 없음
-                        // animation: MapAnimation(duration: 300), // 제거
-                      );
+                      _mapController?.setCenter(currentLatLng);
+                      _mapController?.setLevel(5);
                     },
                     mini: true, backgroundColor: Colors.white, elevation: 2,
                     child: const Icon(Icons.my_location, color: primaryColor),
@@ -337,7 +324,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // 하단 슬라이딩 패널 (CameraUpdate 수정)
+          // 하단 슬라이딩 패널
           DraggableScrollableSheet(
             initialChildSize: 0.3, minChildSize: 0.15, maxChildSize: 0.8,
             builder: (BuildContext context, ScrollController scrollController) {
@@ -377,14 +364,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   onTap: () {
                                     if (record.latitude != null && record.longitude != null) {
                                       final targetLatLng = LatLng(record.latitude!, record.longitude!);
-                                      // moveCamera 와 CameraUpdate.newCameraPosition 사용
-                                      _mapController?.moveCamera(
-                                        CameraUpdate.newCameraPosition( // newCameraPosition 사용
-                                            CameraPosition(target: targetLatLng, zoom: 5) // CameraPosition 생성자 사용
-                                        ),
-                                        // ^1.2.1 moveCamera 에는 animation 파라미터 없음
-                                        // animation: MapAnimation(duration: 300), // 제거
-                                      );
+                                      _mapController?.setCenter(targetLatLng);
+                                      _mapController?.setLevel(5);
                                       // 마커 선택 및 스낵바 표시
                                       setState(() => _selectedMarkerId = record.id);
                                       ScaffoldMessenger.of(context).hideCurrentSnackBar();
