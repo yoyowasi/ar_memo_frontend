@@ -576,14 +576,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.9.0"
-  kakao_map_sdk:
-    dependency: "direct main"
-    description:
-      name: kakao_map_sdk
-      sha256: "3d63684da4175c51636a745c22f755286de19a7a7cce4d4adbfece42323895ed"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.2.1"
   leak_tracker:
     dependency: transitive
     description:
