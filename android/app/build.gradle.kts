@@ -1,42 +1,50 @@
-// android/app/build.gradle.kts  ← 전체 교체
+// android/app/build.gradle.kts (module-level)
 
 plugins {
     id("com.android.application")
-    id("kotlin-android")
+    id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// ✅ Kotlin DSL에서 flutter 확장을 안전하게 참조
+val flutter = extensions.getByName("flutter") as groovy.lang.GroovyObject
 
 android {
     namespace = "com.example.ar_memo_frontend"
 
-    // ✅ 플러그인/의존성 요구사항 충족
-    compileSdk = 36
+    // ✅ ObjectFactory.property(...) 충돌 회피: getProperty 사용
+    compileSdk = (flutter.getProperty("compileSdkVersion") as Int)
+    ndkVersion = flutter.getProperty("ndkVersion") as String
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 
     defaultConfig {
         applicationId = "com.example.ar_memo_frontend"
-        minSdk = 24
-        targetSdk = 36        // 원하면 34/35도 가능하지만 최신 권장치로 맞춤
-        versionCode = 1
-        versionName = "1.0"
+        minSdk = (flutter.getProperty("minSdkVersion") as Int)
+        targetSdk = (flutter.getProperty("targetSdkVersion") as Int)
+        versionCode = (flutter.getProperty("versionCode") as Int)
+        versionName = flutter.getProperty("versionName") as String
         multiDexEnabled = true
+
+        manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] = "a04b18bad57c4a8b33e9eccada1f9748"
     }
 
-    // ✅ AGP 8.x 권장: JDK 11 (kakao_map_plugin 호환)
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
-
-    // ✅ Debug: 축소 OFF / Release: 코드+리소스 축소 ON
     buildTypes {
-        getByName("debug") {
+        // ✅ 개발용 빌드에서는 코드/리소스 축소 모두 끄기
+        debug {
             isMinifyEnabled = false
             isShrinkResources = false
         }
-        getByName("release") {
+
+        // ✅ 배포용 빌드에서는 축소 활성화 (원할 경우)
+        release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -45,48 +53,9 @@ android {
             )
         }
     }
-
-    // ✅ 코틀린 소스 디렉토리(있으면)
-    sourceSets {
-        getByName("main") {
-            java.srcDirs("src/main/kotlin")
-        }
-    }
-
-    // ✅ ARCore JNI 충돌 방지 + 일반 리소스 제외
-    packaging {
-        jniLibs {
-            pickFirsts += listOf(
-                "lib/arm64-v8a/libarcore_sdk_jni.so",
-                "lib/armeabi-v7a/libarcore_sdk_jni.so",
-                "lib/x86/libarcore_sdk_jni.so",
-                "lib/x86_64/libarcore_sdk_jni.so"
-            )
-        }
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
 }
 
-// Flutter 소스 루트
-flutter {
-    source = "../.."
-}
-
-dependencies {
-    implementation("androidx.multidex:multidex:2.0.1")
-    implementation("com.google.ar:core:1.33.0")
-    implementation(kotlin("stdlib-jdk8"))
-}
-
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-}
-
-tasks.withType<JavaCompile>().configureEach {
-    sourceCompatibility = "17"
-    targetCompatibility = "17"
+// ✅ Kotlin Toolchain 17 강제
+kotlin {
+    jvmToolchain(17)
 }

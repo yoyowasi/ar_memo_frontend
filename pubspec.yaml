@@ -15,7 +15,7 @@ dependencies:
   flutter_speed_dial: ^7.0.0
 
   # --- 카카오맵 SDK ---
-  kakao_map_plugin: ^0.2.2
+  kakao_map_sdk: ^1.1.4
   # -------------------------------
 
   # 네트워킹 & 상태관리 등

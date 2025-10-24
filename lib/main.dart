@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 // Removed KakaoSdk.init and javascriptAppKey logic
 // The native app keys configured in AndroidManifest.xml and Info.plist should be sufficient.
 
@@ -11,6 +12,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env"); // .env 파일 로드
   await initializeDateFormatting('ko_KR', null);
+
+  KakaoMapSdk.instance.initialize('a04b18bad57c4a8b33e9eccada1f9748');
 
   runApp(
     const ProviderScope(
