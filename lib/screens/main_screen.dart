@@ -32,9 +32,8 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack( // 화면 전환 시 상태 유지를 위해 IndexedStack 사용
-        index: _selectedIndex,
-        children: _widgetOptions,
+      body: Center(
+        child: _widgetOptions.elementAt(_selectedIndex),
       ),
       bottomNavigationBar: Container(
         // 시안 디자인과 유사하게 약간의 그림자 및 상단 경계선 추가
