@@ -13,8 +13,16 @@ import 'package:ar_memo_frontend/theme/text_styles.dart';
 class CreateTripRecordScreen extends ConsumerStatefulWidget {
   final TripRecord? recordToEdit; // 수정 모드를 위한 데이터
   final List<String>? initialPhotoUrls; // 생성 모드를 위한 초기 사진
+  final double? initialLatitude;
+  final double? initialLongitude;
 
-  const CreateTripRecordScreen({super.key, this.recordToEdit, this.initialPhotoUrls});
+  const CreateTripRecordScreen({
+    super.key,
+    this.recordToEdit,
+    this.initialPhotoUrls,
+    this.initialLatitude,
+    this.initialLongitude,
+  });
 
   @override
   ConsumerState<CreateTripRecordScreen> createState() =>
@@ -92,8 +100,8 @@ class _CreateTripRecordScreenState
       final messenger = ScaffoldMessenger.of(context);
 
       // TODO: 수정 시 위치 정보 업데이트 로직 추가 (예: 지도에서 위치 다시 선택 기능)
-      double? currentLat = _isEditMode ? widget.recordToEdit!.latitude : null;
-      double? currentLng = _isEditMode ? widget.recordToEdit!.longitude : null;
+      double? currentLat = _isEditMode ? widget.recordToEdit!.latitude : widget.initialLatitude;
+      double? currentLng = _isEditMode ? widget.recordToEdit!.longitude : widget.initialLongitude;
 
       try {
         final notifier = ref.read(tripRecordsProvider.notifier);

@@ -16,6 +16,7 @@ import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'dart:math';
 
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
+import 'package:geolocator/geolocator.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -58,12 +59,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _clearAllPois() async {
     if (_mapController == null) return;
-    for (final poi in _pois.values) {
-      await _mapController!.labelLayer.removePoi(poi);
-    }
+    // Manual iteration to remove all POIs as there is no 'clear' method
+    await Future.wait(_pois.values.map((poi) => _mapController!.labelLayer.removePoi(poi)));
+
+    // Still need to clear local state
     _pois.clear();
     _markerInfoWindows.clear();
-    // Also clear selection state and icon cache
     _previouslySelectedMarkerId = null;
     _photoMarkerIcons.clear();
   }
@@ -204,7 +205,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     debugPrint('Poi Tapped: $recordId');
   }
 
-  
+  Future<void> _moveToCurrentUserLocation() async {
+    if (_mapController == null) return;
+
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied ||
+            permission == LocationPermission.deniedForever) {
+          // Handle case where user denies permission
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('위치 정보 권한이 필요합니다.')),
+          );
+          return;
+        }
+      }
+
+      final position = await Geolocator.getCurrentPosition();
+      final currentLatLng = LatLng(position.latitude, position.longitude);
+
+      await _mapController!.moveCamera(
+        CameraUpdate.newCenterPosition(currentLatLng),
+        animation: const CameraAnimation(500),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('현재 위치를 가져올 수 없습니다: $e')),
+      );
+    }
+  }
 
   void _showCreateTripPopup(BuildContext context, WidgetRef ref) {
     final titleController = TextEditingController();
@@ -472,7 +504,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _handleArRecordCreation() async {
     // 1. Take photo
     final picker = ImagePicker();
-    // Use camera
     final XFile? photo = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
 
     if (photo == null || !mounted) return;
@@ -482,43 +513,54 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
         title: const Text('사진 사용'),
-        content: Image.file(File(photo.path)), // Show the taken photo
+        content: Image.file(File(photo.path)),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false), // Cancel
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('다시 찍기'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true), // Confirm
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('이 사진 사용'),
           ),
         ],
       ),
     );
 
-    // 3. Upload and navigate
+    // 3. Get location, upload, and navigate
     if (usePhoto == true && mounted) {
-      // Show a loading indicator
       showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(child: CircularProgressIndicator()));
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
 
       try {
-        // 4. Upload
+        // Get location
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+          if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+            throw Exception('위치 정보 권한이 거부되었습니다.');
+          }
+        }
+        final position = await Geolocator.getCurrentPosition();
+
+        // Upload photo
         final repository = ref.read(uploadRepositoryProvider);
         final result = await repository.uploadPhoto(photo);
         final newUrl = result.url;
 
         if (!mounted) return;
-
         Navigator.of(context).pop(); // Dismiss loading indicator
 
-        // 5. Navigate to create screen
+        // Navigate to create screen with photo and location
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => CreateTripRecordScreen(
               initialPhotoUrls: [newUrl],
+              initialLatitude: position.latitude,
+              initialLongitude: position.longitude,
             ),
           ),
         );
@@ -526,7 +568,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         if (!mounted) return;
         Navigator.of(context).pop(); // Dismiss loading indicator
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('사진 업로드 실패: $e')),
+          SnackBar(content: Text('오류: $e')),
         );
       }
     }
@@ -578,11 +620,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onMapReady: (controller) {
               _mapController = controller;
               debugPrint("Map controller is ready.");
+              _moveToCurrentUserLocation();
               _loadAndSetMarkersFromProvider();
             },
             option: const KakaoMapOption(
               position: LatLng(37.5665, 126.9780),
-              zoomLevel: 7,
+              zoomLevel: 14,
             ),
           ),
 
@@ -619,14 +662,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(width: 10),
                   FloatingActionButton(
-                    onPressed: () async {
-                      final currentLatLng =
-                      const LatLng(37.5665, 126.9780); // TODO: geolocator
-                      await _mapController?.moveCamera(
-                        CameraUpdate.newCenterPosition(currentLatLng),
-                        animation: const CameraAnimation(500),
-                      );
-                    },
+                    onPressed: _moveToCurrentUserLocation,
                     mini: true,
                     backgroundColor: Colors.white,
                     elevation: 2,
