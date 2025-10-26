@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:ar_memo_frontend/utils/url_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
 import 'package:ar_memo_frontend/screens/ar_viewer_screen.dart';
+import 'package:ar_memo_frontend/screens/create_trip_record_screen.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
@@ -31,6 +32,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final Map<String, String> _markerInfoWindows = {};
   final Map<String, Poi> _pois = {};
   KImage? _poiIcon;
+
+  // Photo marker cache and selection tracking
+  String? _previouslySelectedMarkerId;
+  final Map<String, KImage> _photoMarkerIcons = {};
 
   @override
   void initState() {
@@ -91,31 +96,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           style: style,
           id: markerId,
           text: infoTitle,
-          onClick: () {
-            setState(() {
-              _selectedMarkerId = markerId;
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(_markerInfoWindows[markerId] ?? '정보 없음'),
-                  duration: const Duration(seconds: 3),
-                  action: SnackBarAction(
-                    label: '상세보기',
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              TripRecordDetailScreen(recordId: markerId),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              );
-            });
-            debugPrint('Poi Tapped: $markerId');
-          },
+          onClick: () => _onMarkerTapped(markerId),
         );
 
         _pois[markerId] = poi;
@@ -125,18 +106,102 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
   }
 
-  String _toAbsoluteUrl(String relativeUrl) {
-    if (relativeUrl.startsWith('http')) return relativeUrl;
-    final rawBaseUrl = dotenv.env['API_BASE_URL'];
-    if (rawBaseUrl == null || rawBaseUrl.isEmpty) {
-      debugPrint("Warning: API_BASE_URL is not set in .env file.");
-      return relativeUrl;
+  Future<void> _onMarkerTapped(String recordId) async {
+    // Revert previously selected marker to default icon
+    if (_previouslySelectedMarkerId != null &&
+        _previouslySelectedMarkerId != recordId) {
+      final oldPoi = _pois[_previouslySelectedMarkerId!];
+      if (oldPoi != null) {
+        final defaultStyle = PoiStyle(icon: _poiIcon!);
+        // Re-add with default style
+        await _mapController?.labelLayer.removePoi(oldPoi);
+        final newPoi = await _mapController!.labelLayer.addPoi(
+          oldPoi.position,
+          style: defaultStyle,
+          id: oldPoi.id,
+          text: oldPoi.text,
+          onClick: () => _onMarkerTapped(oldPoi.id!),
+        );
+        _pois[oldPoi.id!] = newPoi;
+      }
     }
-    final baseUrl = rawBaseUrl.endsWith('/')
-        ? rawBaseUrl.substring(0, rawBaseUrl.length - 1)
-        : rawBaseUrl;
-    return '$baseUrl$relativeUrl';
+
+    final records = ref.read(tripRecordsProvider).asData?.value ?? [];
+    final record = records.firstWhere((r) => r.id == recordId,
+        orElse: () => throw Exception("Record not found for ID: $recordId"));
+
+    // Show SnackBar
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_markerInfoWindows[recordId] ?? '정보 없음'),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: '상세보기',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    TripRecordDetailScreen(recordId: recordId),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    // Update marker icon to photo if available
+    if (record.photoUrls.isNotEmpty) {
+      KImage? photoIcon = _photoMarkerIcons[recordId];
+
+      if (photoIcon == null) {
+        // Create and cache the icon
+        photoIcon = await KImage.fromWidget(
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              image: DecorationImage(
+                  image: NetworkImage(toAbsoluteUrl(record.photoUrls.first)),
+                  fit: BoxFit.cover),
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.3), blurRadius: 5)
+              ],
+            ),
+          ),
+          const Size(70, 70),
+        );
+        _photoMarkerIcons[recordId] = photoIcon;
+      }
+
+      final poiToUpdate = _pois[recordId];
+      if (poiToUpdate != null) {
+        final photoStyle = PoiStyle(icon: photoIcon);
+        // Re-add with photo style
+        await _mapController?.labelLayer.removePoi(poiToUpdate);
+        final newPoi = await _mapController!.labelLayer.addPoi(
+          poiToUpdate.position,
+          style: photoStyle,
+          id: poiToUpdate.id,
+          text: poiToUpdate.text,
+          onClick: () => _onMarkerTapped(poiToUpdate.id!),
+        );
+        _pois[poiToUpdate.id!] = newPoi;
+      }
+    }
+
+    setState(() {
+      _selectedMarkerId = recordId;
+      _previouslySelectedMarkerId = recordId;
+    });
+    debugPrint('Poi Tapped: $recordId');
   }
+
+  
 
   void _showCreateTripPopup(BuildContext context, WidgetRef ref) {
     final titleController = TextEditingController();
@@ -401,6 +466,69 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Future<void> _handleArRecordCreation() async {
+    // 1. Take photo
+    final picker = ImagePicker();
+    // Use camera
+    final XFile? photo = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+
+    if (photo == null || !mounted) return;
+
+    // 2. Show confirmation dialog
+    final bool? usePhoto = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('사진 사용'),
+        content: Image.file(File(photo.path)), // Show the taken photo
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false), // Cancel
+            child: const Text('다시 찍기'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true), // Confirm
+            child: const Text('이 사진 사용'),
+          ),
+        ],
+      ),
+    );
+
+    // 3. Upload and navigate
+    if (usePhoto == true && mounted) {
+      // Show a loading indicator
+      showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(child: CircularProgressIndicator()));
+
+      try {
+        // 4. Upload
+        final repository = ref.read(uploadRepositoryProvider);
+        final result = await repository.uploadPhoto(photo);
+        final newUrl = result.url;
+
+        if (!mounted) return;
+
+        Navigator.of(context).pop(); // Dismiss loading indicator
+
+        // 5. Navigate to create screen
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => CreateTripRecordScreen(
+              initialPhotoUrls: [newUrl],
+            ),
+          ),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        Navigator.of(context).pop(); // Dismiss loading indicator
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('사진 업로드 실패: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(tripRecordsProvider, (_, next) {
@@ -437,10 +565,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             backgroundColor: Colors.white,
             label: 'AR 기록',
             labelStyle: bodyText1.copyWith(color: textColor),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const ArViewerScreen()),
-            ),
+            onTap: _handleArRecordCreation,
           ),
         ],
       ),
@@ -666,7 +791,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                         height: 80,
                                         child: record.photoUrls.isNotEmpty
                                             ? Image.network(
-                                          _toAbsoluteUrl(
+                                          toAbsoluteUrl(
                                               record.photoUrls.first),
                                           fit: BoxFit.cover,
                                           loadingBuilder: (context,

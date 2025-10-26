@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:ar_memo_frontend/utils/url_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -12,7 +12,9 @@ import 'package:ar_memo_frontend/theme/text_styles.dart';
 
 class CreateTripRecordScreen extends ConsumerStatefulWidget {
   final TripRecord? recordToEdit; // 수정 모드를 위한 데이터
-  const CreateTripRecordScreen({super.key, this.recordToEdit});
+  final List<String>? initialPhotoUrls; // 생성 모드를 위한 초기 사진
+
+  const CreateTripRecordScreen({super.key, this.recordToEdit, this.initialPhotoUrls});
 
   @override
   ConsumerState<CreateTripRecordScreen> createState() =>
@@ -45,22 +47,13 @@ class _CreateTripRecordScreenState
       _photoUrls.addAll(record.photoUrls); // 기존 이미지 URL 로드
     } else {
       _selectedDate = DateTime.now(); // 생성 모드는 오늘 날짜
+      if (widget.initialPhotoUrls != null) {
+        _photoUrls.addAll(widget.initialPhotoUrls!);
+      }
     }
   }
 
-  /// 서버 URL 변환 함수
-  String _toAbsoluteUrl(String relativeUrl) {
-    if (relativeUrl.startsWith('http')) return relativeUrl;
-    final rawBaseUrl = dotenv.env['API_BASE_URL'];
-    if (rawBaseUrl == null || rawBaseUrl.isEmpty) {
-      debugPrint("Warning: API_BASE_URL is not set in .env file.");
-      return relativeUrl;
-    }
-    final baseUrl = rawBaseUrl.endsWith('/')
-        ? rawBaseUrl.substring(0, rawBaseUrl.length - 1)
-        : rawBaseUrl;
-    return '$baseUrl$relativeUrl';
-  }
+  
 
   // 이미지 선택 및 업로드
   Future<void> _pickAndUploadImage() async {
@@ -119,7 +112,16 @@ class _CreateTripRecordScreenState
           );
           messenger.showSnackBar(const SnackBar(content: Text('일기가 수정되었습니다.')));
         } else {
-          // 생성 로직은 홈 화면 팝업에서 처리
+          // 생성 로직 추가
+          await notifier.addTripRecord(
+            title: _titleController.text,
+            content: _contentController.text,
+            date: _selectedDate!,
+            photoUrls: _photoUrls,
+            latitude: currentLat,
+            longitude: currentLng,
+          );
+          messenger.showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
         }
         navigator.pop(true); // 변경사항 알림
       } catch (e, stackTrace) {
@@ -147,7 +149,7 @@ class _CreateTripRecordScreenState
         .where((url) => !_removedUrls.contains(url)) // 삭제된 URL 제외
         .map((url) => _buildGridItem(
       key: ValueKey(url),
-      imageProvider: NetworkImage(_toAbsoluteUrl(url)),
+      imageProvider: NetworkImage(toAbsoluteUrl(url)),
       onDelete: () => setState(() {
         _removedUrls.add(url); // 삭제 목록에 추가 (실제 삭제는 저장 시 처리)
         // _photoUrls.remove(url); // 바로 목록에서 제거해도 무방
