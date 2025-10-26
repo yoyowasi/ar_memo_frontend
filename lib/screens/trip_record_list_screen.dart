@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:intl/intl.dart';
+import 'package:ar_memo_frontend/utils/url_utils.dart';
 // import 'package:ar_memo_frontend/screens/home_screen.dart'; // <- 삭제
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -14,20 +14,6 @@ import 'package:ar_memo_frontend/models/trip_record.dart';
 
 class TripRecordListScreen extends ConsumerWidget {
   const TripRecordListScreen({super.key});
-
-  /// 서버 URL 변환 함수
-  String _toAbsoluteUrl(String relativeUrl) {
-    if (relativeUrl.startsWith('http')) return relativeUrl;
-    final rawBaseUrl = dotenv.env['API_BASE_URL'];
-    if (rawBaseUrl == null || rawBaseUrl.isEmpty) {
-      debugPrint("Warning: API_BASE_URL is not set in .env file.");
-      return relativeUrl;
-    }
-    final baseUrl = rawBaseUrl.endsWith('/')
-        ? rawBaseUrl.substring(0, rawBaseUrl.length - 1)
-        : rawBaseUrl;
-    return '$baseUrl$relativeUrl';
-  }
 
   // --- 생성 팝업 로직 (유지) ---
   void _showCreateTripPopup(BuildContext context, WidgetRef ref) {
@@ -197,7 +183,7 @@ class TripRecordListScreen extends ConsumerWidget {
                         SizedBox(
                           width: 100, height: 100,
                           child: record.photoUrls.isNotEmpty
-                              ? Image.network(_toAbsoluteUrl(record.photoUrls.first), fit: BoxFit.cover,
+                              ? Image.network(toAbsoluteUrl(record.photoUrls.first), fit: BoxFit.cover,
                             loadingBuilder: (context, child, loadingProgress) => loadingProgress == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
                             errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[200], child: const Icon(Icons.broken_image_outlined, color: Colors.grey)),
                           )

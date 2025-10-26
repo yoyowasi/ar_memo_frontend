@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:ar_memo_frontend/utils/url_utils.dart';
 // import 'package:ar_memo_frontend/models/trip_record.dart'; // <- 삭제 (Provider가 반환)
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
@@ -11,20 +11,6 @@ import 'package:ar_memo_frontend/screens/create_trip_record_screen.dart';
 class TripRecordDetailScreen extends ConsumerWidget {
   final String recordId;
   const TripRecordDetailScreen({super.key, required this.recordId});
-
-  /// 서버 URL 변환 함수
-  String _toAbsoluteUrl(String relativeUrl) {
-    if (relativeUrl.startsWith('http')) return relativeUrl;
-    final rawBaseUrl = dotenv.env['API_BASE_URL'];
-    if (rawBaseUrl == null || rawBaseUrl.isEmpty) {
-      debugPrint("Warning: API_BASE_URL is not set in .env file.");
-      return relativeUrl;
-    }
-    final baseUrl = rawBaseUrl.endsWith('/')
-        ? rawBaseUrl.substring(0, rawBaseUrl.length - 1)
-        : rawBaseUrl;
-    return '$baseUrl$relativeUrl';
-  }
 
   // 삭제 확인 다이얼로그
   void _deleteRecord(BuildContext context, WidgetRef ref) { /* ... 이전과 동일 ... */ }
@@ -51,7 +37,7 @@ class TripRecordDetailScreen extends ConsumerWidget {
                   title: Text(record.title, style: heading2.copyWith(color: Colors.white, shadows: [Shadow(blurRadius: 2, color: Colors.black.withOpacity(0.5))]), maxLines: 1, overflow: TextOverflow.ellipsis),
                   background: record.photoUrls.isNotEmpty
                       ? Stack(fit: StackFit.expand, children: [
-                    Image.network(_toAbsoluteUrl(record.photoUrls.first), fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: mutedSurfaceColor, child: const Center(child: Icon(Icons.broken_image_outlined, color: subTextColor)))),
+                    Image.network(toAbsoluteUrl(record.photoUrls.first), fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: mutedSurfaceColor, child: const Center(child: Icon(Icons.broken_image_outlined, color: subTextColor)))),
                     DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black.withOpacity(0.1), Colors.black.withOpacity(0.5)], stops: const [0.5, 0.7, 1.0]))),
                   ],)
                       : Container(color: mutedSurfaceColor, child: const Center(child: Icon(Icons.image_not_supported_outlined, color: subTextColor, size: 60))),
@@ -88,7 +74,7 @@ class TripRecordDetailScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
                     if (record.photoUrls.length > 1)
                       ...record.photoUrls.skip(1).map((url) {
-                        return Padding(padding: const EdgeInsets.only(bottom: 12.0), child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(_toAbsoluteUrl(url), fit: BoxFit.cover,
+                        return Padding(padding: const EdgeInsets.only(bottom: 12.0), child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(toAbsoluteUrl(url), fit: BoxFit.cover,
                           loadingBuilder: (context, child, loadingProgress) => loadingProgress == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
                           errorBuilder: (context, error, stackTrace) => Container(height: 200, color: mutedSurfaceColor, child: const Center(child: Icon(Icons.error_outline, color: subTextColor))),
                         ),),);
