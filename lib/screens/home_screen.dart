@@ -63,6 +63,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
     _pois.clear();
     _markerInfoWindows.clear();
+    // Also clear selection state and icon cache
+    _previouslySelectedMarkerId = null;
+    _photoMarkerIcons.clear();
   }
 
   Future<void> _loadAndSetMarkersFromProvider() async {

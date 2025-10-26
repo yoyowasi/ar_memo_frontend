@@ -13,7 +13,51 @@ class TripRecordDetailScreen extends ConsumerWidget {
   const TripRecordDetailScreen({super.key, required this.recordId});
 
   // 삭제 확인 다이얼로그
-  void _deleteRecord(BuildContext context, WidgetRef ref) { /* ... 이전과 동일 ... */ }
+  void _deleteRecord(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('기록 삭제'),
+          content: const Text('정말로 이 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('취소'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(); // Close the dialog
+              },
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('삭제'),
+              onPressed: () async {
+                Navigator.of(dialogContext).pop(); // Close the dialog
+
+                try {
+                  // Call the provider to delete the record
+                  await ref
+                      .read(tripRecordsProvider.notifier)
+                      .deleteTripRecord(recordId);
+
+                  // Pop the detail screen to go back to the list
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                  }
+                } catch (e) {
+                  // Show error message
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('삭제 실패: $e')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

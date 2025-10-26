@@ -1,31 +1,98 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // dotenv import
+import 'package:ar_memo_frontend/utils/url_utils.dart'; // url_utils import
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ar_memo_frontend/providers/group_provider.dart';
 import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
+import 'package:ar_memo_frontend/screens/main_screen.dart'; // For tab provider
 
 class GroupDetailScreen extends ConsumerWidget {
   final String groupId;
 
   const GroupDetailScreen({super.key, required this.groupId});
 
-  // --- _toAbsoluteUrl 헬퍼 함수 추가 (Image.network용) ---
-  String _toAbsoluteUrl(String relativeUrl) {
-    if (relativeUrl.startsWith('http')) return relativeUrl;
-    final rawBaseUrl = dotenv.env['API_BASE_URL'];
-    if (rawBaseUrl == null || rawBaseUrl.isEmpty) {
-      debugPrint("Warning: API_BASE_URL is not set in .env file.");
-      return relativeUrl;
-    }
-    final baseUrl = rawBaseUrl.endsWith('/')
-        ? rawBaseUrl.substring(0, rawBaseUrl.length - 1)
-        : rawBaseUrl;
-    return '$baseUrl$relativeUrl';
+  
+
+  // Working implementation based on TripRecordDetailScreen
+  void _deleteGroup(BuildContext context, WidgetRef ref) {
+    // This context is the screen's context, passed down from _showMoreOptions.
+    // First, pop the bottom sheet.
+    Navigator.of(context).pop();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('그룹 삭제'),
+          content: const Text('정말로 이 그룹을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('취소'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('삭제'),
+              onPressed: () async {
+                Navigator.of(dialogContext).pop(); // Close dialog
+
+                try {
+                  // Call repository directly
+                  await ref.read(groupRepositoryProvider).deleteGroup(groupId);
+
+                  // Invalidate providers to refresh the list
+                  ref.invalidate(myGroupsProvider);
+                  ref.invalidate(groupDetailProvider(groupId));
+
+                  // Pop the detail screen to go back
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('삭제 실패: $e')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
-  // ------------------------------------------------
+
+  void _showMoreOptions(BuildContext screenContext, WidgetRef ref) { // Use a specific name for the screen's context
+    showModalBottomSheet(
+      context: screenContext,
+      builder: (BuildContext context) { // This is the sheet's context
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('그룹 정보 수정'),
+                onTap: () {
+                  // TODO: Implement Edit Group
+                  Navigator.of(context).pop();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('그룹 삭제', style: TextStyle(color: Colors.red)),
+                onTap: () => _deleteGroup(screenContext, ref), // Pass the correct screenContext down
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -47,7 +114,7 @@ class GroupDetailScreen extends ConsumerWidget {
           IconButton(icon: const Icon(Icons.search), onPressed: () {}),
           IconButton(
               icon: const Icon(Icons.people_outline), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.more_vert), onPressed: () => _showMoreOptions(context, ref)),
         ],
       ),
       // Stack 제거하고 바로 DraggableScrollableSheet 사용 또는 Column 등으로 배치
@@ -91,7 +158,7 @@ class GroupDetailScreen extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(8),
                               child: (memory.thumbUrl?.isNotEmpty ?? false)
                                   ? Image.network(
-                                  _toAbsoluteUrl(memory.thumbUrl!),
+                                  toAbsoluteUrl(memory.thumbUrl!),
                                   width: 56, height: 56, fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) => Container(
                                       width: 56, height: 56, color: mutedSurfaceColor,

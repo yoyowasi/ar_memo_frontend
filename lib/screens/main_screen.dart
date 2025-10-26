@@ -1,19 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/screens/home_screen.dart'; // 홈(지도) 스크린
 import 'package:ar_memo_frontend/screens/ar_viewer_screen.dart'; // AR 뷰어 스크린
 import 'package:ar_memo_frontend/screens/trip_record_list_screen.dart'; // 여행 기록(일기) 스크린
 import 'package:ar_memo_frontend/screens/my_page_screen.dart'; // 프로필 스크린
 import 'package:ar_memo_frontend/theme/colors.dart';
 
-class MainScreen extends StatefulWidget {
+// Provider to manage the selected tab index
+final mainScreenTabIndexProvider = StateProvider<int>((ref) => 0);
+
+class MainScreen extends ConsumerWidget { // Convert to ConsumerWidget
   const MainScreen({super.key});
-
-  @override
-  State<MainScreen> createState() => _MainScreenState();
-}
-
-class _MainScreenState extends State<MainScreen> {
-  int _selectedIndex = 0;
 
   // 탭 변경: 홈(지도), AR 뷰어, 여행 기록(일기), 프로필
   static const List<Widget> _widgetOptions = <Widget>[
@@ -23,17 +20,13 @@ class _MainScreenState extends State<MainScreen> {
     MyPageScreen(),
   ];
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedIndex = ref.watch(mainScreenTabIndexProvider);
+
     return Scaffold(
       body: Center(
-        child: _widgetOptions.elementAt(_selectedIndex),
+        child: _widgetOptions.elementAt(selectedIndex),
       ),
       bottomNavigationBar: Container(
         // 시안 디자인과 유사하게 약간의 그림자 및 상단 경계선 추가
@@ -56,8 +49,8 @@ class _MainScreenState extends State<MainScreen> {
           unselectedItemColor: subTextColor, // 선택되지 않은 아이템 색상 (회색)
           selectedFontSize: 12, // 선택된 폰트 크기
           unselectedFontSize: 12, // 선택되지 않은 폰트 크기
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
+          currentIndex: selectedIndex,
+          onTap: (index) => ref.read(mainScreenTabIndexProvider.notifier).state = index,
           items: const <BottomNavigationBarItem>[
             // 홈 (지도) 탭
             BottomNavigationBarItem(
