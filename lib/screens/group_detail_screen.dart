@@ -1,15 +1,98 @@
 import 'package:flutter/material.dart';
+import 'package:ar_memo_frontend/utils/url_utils.dart'; // url_utils import
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kakao_map_plugin/kakao_map_plugin.dart';
+
 import 'package:ar_memo_frontend/providers/group_provider.dart';
 import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
+import 'package:ar_memo_frontend/screens/main_screen.dart'; // For tab provider
 
 class GroupDetailScreen extends ConsumerWidget {
   final String groupId;
 
   const GroupDetailScreen({super.key, required this.groupId});
+
+  
+
+  // Working implementation based on TripRecordDetailScreen
+  void _deleteGroup(BuildContext context, WidgetRef ref) {
+    // This context is the screen's context, passed down from _showMoreOptions.
+    // First, pop the bottom sheet.
+    Navigator.of(context).pop();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('그룹 삭제'),
+          content: const Text('정말로 이 그룹을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('취소'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('삭제'),
+              onPressed: () async {
+                Navigator.of(dialogContext).pop(); // Close dialog
+
+                try {
+                  // Call repository directly
+                  await ref.read(groupRepositoryProvider).deleteGroup(groupId);
+
+                  // Invalidate providers to refresh the list
+                  ref.invalidate(myGroupsProvider);
+                  ref.invalidate(groupDetailProvider(groupId));
+
+                  // Pop the detail screen to go back
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('삭제 실패: $e')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showMoreOptions(BuildContext screenContext, WidgetRef ref) { // Use a specific name for the screen's context
+    showModalBottomSheet(
+      context: screenContext,
+      builder: (BuildContext context) { // This is the sheet's context
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('그룹 정보 수정'),
+                onTap: () {
+                  // TODO: Implement Edit Group
+                  Navigator.of(context).pop();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('그룹 삭제', style: TextStyle(color: Colors.red)),
+                onTap: () => _deleteGroup(screenContext, ref), // Pass the correct screenContext down
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -17,121 +100,103 @@ class GroupDetailScreen extends ConsumerWidget {
     final memoriesAsync = ref.watch(groupMemoriesProvider(groupId));
 
     return Scaffold(
-      body: Stack(
-        children: [
-          // 카카오맵 배경
-          KakaoMap(
-            center: LatLng(37.5665, 126.9780), // TODO: 그룹 메모 기반으로 중심 좌표 설정
-          ),
-          // 상단 앱 바
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              iconTheme: const IconThemeData(color: Colors.white),
-              title: groupAsync.when(
-                data: (group) => Text(group.name,
-                    style: heading2.copyWith(
-                        color: Colors.white,
-                        shadows: const [
-                          Shadow(blurRadius: 2, color: Colors.black54)
-                        ])),
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) =>
-                const Text('오류', style: TextStyle(color: Colors.white)),
-              ),
-              actions: [
-                IconButton(icon: const Icon(Icons.search), onPressed: () {}),
-                IconButton(
-                    icon: const Icon(Icons.people_outline), onPressed: () {}),
-                IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
+      // AppBar 배경색 및 아이콘 색상 조정
+      appBar: AppBar(
+        iconTheme: const IconThemeData(color: textColor), // 기본 아이콘 색상
+        backgroundColor: Colors.white, // 흰색 배경
+        elevation: 1, // 구분선
+        title: groupAsync.when(
+          data: (group) => Text(group.name, style: heading2),
+          loading: () => const Text('그룹 정보 로딩 중...', style: heading2),
+          error: (_, __) => const Text('오류', style: heading2),
+        ),
+        actions: [
+          IconButton(icon: const Icon(Icons.search), onPressed: () {}),
+          IconButton(
+              icon: const Icon(Icons.people_outline), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.more_vert), onPressed: () => _showMoreOptions(context, ref)),
+        ],
+      ),
+      // Stack 제거하고 바로 DraggableScrollableSheet 사용 또는 Column 등으로 배치
+      body: DraggableScrollableSheet(
+        initialChildSize: 0.9, // 초기 크기를 거의 전체 화면으로 조정
+        minChildSize: 0.4,    // 최소 크기 조정
+        maxChildSize: 1.0,    // 최대 크기를 전체 화면으로
+        builder: (BuildContext context, ScrollController scrollController) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              // 지도 위에 올라가지 않으므로 상단 둥근 모서리 제거 가능
+              // borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+              boxShadow: [
+                // 필요하다면 상단 그림자 유지 또는 제거
+                BoxShadow(color: Colors.black12, blurRadius: 8.0, spreadRadius: 1.0, offset: Offset(0, -2))
               ],
             ),
-          ),
-
-          // 하단 슬라이딩 패널 (그룹의 기록)
-          DraggableScrollableSheet(
-            initialChildSize: 0.3,
-            minChildSize: 0.15,
-            maxChildSize: 0.8,
-            builder:
-                (BuildContext context, ScrollController scrollController) {
-              return Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black26, blurRadius: 10.0)
-                  ],
+            child: Column(
+              children: [
+                Container( // 핸들러 UI
+                  width: 40, height: 5,
+                  margin: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)),
                 ),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 5,
-                      margin: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    Expanded(
-                      child: memoriesAsync.when(
-                        data: (memories) {
-                          if (memories.isEmpty) {
-                            return const Center(
-                                child: Text("이 그룹에는 아직 기록이 없습니다."));
-                          }
-                          return ListView.builder(
-                            controller: scrollController,
-                            itemCount: memories.length,
-                            itemBuilder: (context, index) {
-                              final memory = memories[index];
-                              return ListTile(
-                                leading: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: (memory.thumbUrl?.isNotEmpty ?? false)
-                                      ? Image.network(memory.thumbUrl!,
-                                      width: 56,
-                                      height: 56,
-                                      fit: BoxFit.cover)
-                                      : Container(
-                                      width: 56,
-                                      height: 56,
-                                      color: mutedSurfaceColor,
-                                      child: const Icon(
-                                          Icons.image_not_supported,
-                                          color: subTextColor)),
-                                ),
-                                title: Text(memory.text ?? '텍스트 없음'),
-                                subtitle:
-                                Text('작성자: ${memory.userId}'), // TODO: 사용자 이름으로 변경
-                                onTap: () {
-                                  // TODO: 메모 상세 페이지로 이동
-                                },
+                Expanded(
+                  child: memoriesAsync.when(
+                    data: (memories) {
+                      if (memories.isEmpty) {
+                        return const Center(child: Text("이 그룹에는 아직 기록이 없습니다."));
+                      }
+                      return ListView.builder(
+                        controller: scrollController,
+                        itemCount: memories.length,
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0), // 좌우 패딩 추가
+                        itemBuilder: (context, index) {
+                          final memory = memories[index];
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8.0), // 리스트 아이템 상하 패딩
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: (memory.thumbUrl?.isNotEmpty ?? false)
+                                  ? Image.network(
+                                  toAbsoluteUrl(memory.thumbUrl!),
+                                  width: 56, height: 56, fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => Container(
+                                      width: 56, height: 56, color: mutedSurfaceColor,
+                                      child: const Icon(Icons.broken_image, color: subTextColor)
+                                  ),
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Container(
+                                      width: 56, height: 56, color: mutedSurfaceColor,
+                                      child: Center(child: CircularProgressIndicator(strokeWidth: 2, value: loadingProgress.expectedTotalBytes != null ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes! : null)),
+                                    );
+                                  }
+                              )
+                                  : Container(
+                                  width: 56, height: 56,
+                                  color: mutedSurfaceColor,
+                                  child: const Icon(Icons.image_not_supported, color: subTextColor)),
+                            ),
+                            title: Text(memory.text ?? '텍스트 없음', style: bodyText1), // 텍스트 스타일 적용
+                            subtitle: Text('작성자 ID: ${memory.userId}', style: bodyText2), // 텍스트 스타일 적용
+                            onTap: () {
+                              // TODO: 메모 상세 페이지 이동
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('메모 ${memory.id} 상세 보기 구현 필요'))
                               );
                             },
                           );
                         },
-                        loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                        error: (err, stack) => Center(
-                            child:
-                            Text('메모를 불러오는 데 실패했습니다.\n$err')),
-                      ),
-                    ),
-                  ],
+                      );
+                    },
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (err, stack) => Center(child: Text('메모를 불러오는 데 실패했습니다.\n$err', textAlign: TextAlign.center)), // 중앙 정렬 추가
+                  ),
                 ),
-              );
-            },
-          )
-        ],
+              ],
+            ),
+          );
+        },
       ),
     );
   }
