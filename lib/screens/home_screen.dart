@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:ar_memo_frontend/models/trip_record.dart';
+import 'package:ar_memo_frontend/services/api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:ar_memo_frontend/utils/url_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,7 +17,7 @@ import 'dart:math';
 
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:native_exif/native_exif.dart';
+
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -241,57 +242,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
               if (pickedFile == null || !builderContext.mounted) return;
 
+              // ===== NEW DEBUGGING CHECKPOINT =====
+              debugPrint("Image picked successfully. Proceeding to location search...");
+              // ====================================
+
               setState(() {
                 isProcessing = true;
-                localFile = pickedFile;
+                localFile = pickedFile; // Keep localFile set
                 tripLatitude = null;
                 tripLongitude = null;
                 photoUrls.clear();
               });
 
-              // --- Start Location Search ---
+              // --- Start Location Search (EXIF removed due to dependency issues) ---
               LatLng? foundLocation;
               String locationSource = "Unknown";
 
-              // 1. Try EXIF
+              // 1. Try Device GPS
               try {
-                final exif = await Exif.fromPath(pickedFile.path);
-                final latLong = await exif.getLatLong();
-                await exif.close();
-                if (latLong != null) {
-                  foundLocation = LatLng(latLong.latitude, latLong.longitude);
-                  locationSource = "EXIF";
+                LocationPermission permission = await Geolocator.checkPermission();
+                if (permission == LocationPermission.denied) {
+                  permission = await Geolocator.requestPermission();
+                }
+                
+                if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+                  final position = await Geolocator.getCurrentPosition();
+                  foundLocation = LatLng(position.latitude, position.longitude);
+                  locationSource = "Device GPS";
+                } else {
+                  debugPrint('Location permission was denied.');
+                  if (builderContext.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('위치 권한이 없어 현재 지도 중앙을 사용합니다.')),
+                    );
+                  }
                 }
               } catch (e) {
-                debugPrint('Could not read EXIF data. Error: $e');
+                debugPrint('Could not get device location. Error: $e');
               }
 
-              // 2. Fallback to Device GPS if EXIF fails
-              if (foundLocation == null) {
-                try {
-                  LocationPermission permission = await Geolocator.checkPermission();
-                  if (permission == LocationPermission.denied) {
-                    permission = await Geolocator.requestPermission();
-                  }
-                  
-                  if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
-                    final position = await Geolocator.getCurrentPosition();
-                    foundLocation = LatLng(position.latitude, position.longitude);
-                    locationSource = "Device GPS";
-                  } else {
-                    debugPrint('Location permission was denied.');
-                    if (builderContext.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('위치 권한이 없어 현재 지도 중앙을 사용합니다.')),
-                      );
-                    }
-                  }
-                } catch (e) {
-                  debugPrint('Could not get device location. Error: $e');
-                }
-              }
-
-              // 3. Fallback to Map Center if GPS fails or is denied
+              // 2. Fallback to Map Center if GPS fails or is denied
               if (foundLocation == null && _mapController != null) {
                 try {
                   // final cameraPosition = await _mapController!.getCameraPosition();
@@ -311,10 +301,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   tripLongitude = foundLocation.longitude;
                 });
               } else {
-                 debugPrint('Could not determine any location.');
+                 // Explicitly set Seoul City Hall coordinates if no location found
+                 tripLatitude = 37.5665; // Seoul City Hall latitude
+                 tripLongitude = 126.9780; // Seoul City Hall longitude
+                 locationSource = "Default (Seoul City Hall)";
+                 debugPrint('Could not determine any location. Using default: $tripLatitude, $tripLongitude');
                  if (builderContext.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('위치 정보를 가져오지 못했습니다.')),
+                      const SnackBar(content: Text('위치 정보를 가져오지 못하여 기본 위치(서울시청)를 사용합니다.')),
                     );
                   }
               }
@@ -322,16 +316,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               // After getting location, upload the photo
               if (builderContext.mounted) {
                 try {
-                  final repository = ref.read(uploadRepositoryProvider);
-                  final result = await repository.uploadPhoto(pickedFile);
-                  photoUrls.add(result.url);
+                  // ===== TEMPORARY DEBUGGING CODE =====
+                  debugPrint("Attempting to fetch current user to test network...");
+                  final apiService = ApiService(); // Use singleton instance
+                  final response = await apiService.get('/auth/me');
+                  debugPrint("Test request completed with status: ${response.statusCode}");
+                  debugPrint("Test response body: ${response.body}");
+                  // ===== END TEMPORARY DEBUGGING CODE =====
+
+                  // final repository = ref.read(uploadRepositoryProvider);
+                  // final result = await repository.uploadPhoto(pickedFile);
+                  // photoUrls.add(result.url);
                 } catch (e) {
                   if (builderContext.mounted) {
                     ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text('이미지 업로드 실패: $e')));
-                    setState(() {
-                      localFile = null;
-                    });
+                        .showSnackBar(SnackBar(content: Text('테스트 요청 실패: $e')));
                   }
                 } finally {
                   if (builderContext.mounted) {

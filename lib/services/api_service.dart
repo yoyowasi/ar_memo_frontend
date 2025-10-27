@@ -132,9 +132,6 @@ class ApiService {
 
   http.MultipartRequest multipartRequest(String method, String endpoint) {
     final request = http.MultipartRequest(method, _buildUri(endpoint));
-    if (_token != null && _token!.isNotEmpty) {
-      request.headers['Authorization'] = 'Bearer $_token';
-    }
     return request;
   }
 

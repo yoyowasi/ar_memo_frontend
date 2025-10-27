@@ -49,6 +49,7 @@ class UploadRepository {
         return UploadPhotoResult.fromJson(decoded);
       }
     }
+    debugPrint('Upload failed with status ${response.statusCode}: ${response.body}');
     throw Exception('Failed to upload photo: ${response.body}');
   }
 }
