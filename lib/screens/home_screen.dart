@@ -615,13 +615,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           context: context,
           barrierDismissible: false,
           builder: (_) => const Center(child: CircularProgressIndicator()),
-        );
+        ).whenComplete(() {
+          progressVisible = false;
+        });
       }
 
       void hideProgressDialog() {
         if (!progressVisible) return;
-        navigator.pop();
         progressVisible = false;
+        if (!navigator.mounted) return;
+        if (navigator.canPop()) {
+          navigator.pop();
+        }
       }
 
       showProgressDialog();
