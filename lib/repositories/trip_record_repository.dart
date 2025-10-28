@@ -8,23 +8,63 @@ class TripRecordRepository {
 
   TripRecordRepository(this._apiService);
 
+  List<Map<String, dynamic>> _extractList(dynamic source) {
+    if (source is List) {
+      return source.whereType<Map<String, dynamic>>().toList();
+    }
+    if (source is Map<String, dynamic>) {
+      final candidates = [
+        source['items'],
+        source['data'],
+        source['results'],
+        source['records'],
+        source['tripRecords'],
+      ];
+      for (final candidate in candidates) {
+        if (candidate is List) {
+          return candidate.whereType<Map<String, dynamic>>().toList();
+        }
+      }
+    }
+    return const <Map<String, dynamic>>[];
+  }
+
+  Map<String, dynamic> _extractObject(dynamic source) {
+    if (source is Map<String, dynamic>) {
+      final candidates = [
+        source['record'],
+        source['tripRecord'],
+        source['data'],
+        source['item'],
+      ];
+      for (final candidate in candidates) {
+        if (candidate is Map<String, dynamic>) {
+          return candidate;
+        }
+      }
+      return source;
+    }
+    throw Exception('Unexpected trip record payload: $source');
+  }
+
   Future<List<TripRecord>> getTripRecords({int page = 1, int limit = 20}) async {
-    final res = await _apiService.get('/trip-records', queryParameters: {'page': page, 'limit': limit});
+    final res = await _apiService.get('/api/trip-records', queryParameters: {'page': page, 'limit': limit});
     if (res.statusCode != 200) {
       throw Exception('Failed to fetch trip records: ${res.statusCode} ${res.body}');
     }
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    final items = (data['items'] as List).cast<Map<String, dynamic>>();
+    final decoded = jsonDecode(res.body);
+    final items = _extractList(decoded);
     return items.map(TripRecord.fromJson).toList();
   }
 
   Future<TripRecord> getTripRecord(String id) async {
-    final res = await _apiService.get('/trip-records/$id');
+    final res = await _apiService.get('/api/trip-records/$id');
     if (res.statusCode != 200) {
       throw Exception('Failed to fetch trip record: ${res.statusCode} ${res.body}');
     }
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    return TripRecord.fromJson(data);
+    final decoded = jsonDecode(res.body);
+    final payload = _extractObject(decoded);
+    return TripRecord.fromJson(payload);
   }
 
   Future<void> createTripRecord({
@@ -45,8 +85,8 @@ class TripRecordRepository {
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
     };
-    final res = await _apiService.post('/trip-records', data: body);
-    if (res.statusCode != 201) {
+    final res = await _apiService.post('/api/trip-records', data: body);
+    if (res.statusCode != 201 && res.statusCode != 200) {
       throw Exception('Failed to create trip record: ${res.statusCode} ${res.body}');
     }
   }
@@ -70,15 +110,15 @@ class TripRecordRepository {
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
     };
-    final res = await _apiService.put('/trip-records/$id', data: body);
+    final res = await _apiService.put('/api/trip-records/$id', data: body);
     if (res.statusCode != 200) {
       throw Exception('Failed to update trip record: ${res.statusCode} ${res.body}');
     }
   }
 
   Future<void> deleteTripRecord(String id) async {
-    final res = await _apiService.delete('/trip-records/$id');
-    if (res.statusCode != 200) {
+    final res = await _apiService.delete('/api/trip-records/$id');
+    if (res.statusCode != 200 && res.statusCode != 204) {
       throw Exception('Failed to delete trip record: ${res.statusCode} ${res.body}');
     }
   }

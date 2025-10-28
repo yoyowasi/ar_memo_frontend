@@ -14,7 +14,7 @@ class UploadRepository {
   UploadRepository(this._apiService);
 
   Future<UploadPhotoResult> uploadPhoto(XFile file) async {
-    final request = _apiService.multipartRequest('POST', '/uploads/photo');
+    final request = _apiService.multipartRequest('POST', '/api/uploads/photo');
     final lookupSource = file.path.isNotEmpty ? file.path : file.name;
     final mimeType = file.mimeType ?? lookupMimeType(lookupSource) ?? 'image/jpeg';
     final parts = mimeType.split('/');

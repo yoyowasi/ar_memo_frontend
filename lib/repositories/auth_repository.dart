@@ -16,7 +16,7 @@ class AuthRepository {
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await _apiService.post(
-      '/auth/login',
+      '/api/auth/login',
       data: <String, String>{
         'email': email,
         'password': password,
@@ -42,7 +42,7 @@ class AuthRepository {
     }
 
     final response = await _apiService.post(
-      '/auth/register',
+      '/api/auth/register',
       data: body,
     );
 
@@ -56,7 +56,7 @@ class AuthRepository {
   }
 
   Future<Map<String, dynamic>> fetchCurrentUser() async {
-    final response = await _apiService.get('/auth/me');
+    final response = await _apiService.get('/api/auth/me');
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data is Map<String, dynamic>) {
@@ -78,7 +78,7 @@ class AuthRepository {
   Future<bool> verifyToken() async {
     if (!isLoggedIn) return false;
     try {
-      final response = await _apiService.get('/auth/me');
+      final response = await _apiService.get('/api/auth/me');
       if (response.statusCode == 200) {
         return true;
       } else if (response.statusCode == 401) {

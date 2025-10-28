@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:flutter/material.dart';
@@ -8,7 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
-import 'package:ar_memo_frontend/screens/create_trip_record_screen.dart';
+import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
@@ -36,15 +37,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String? _previouslySelectedMarkerId;
   final Map<String, KImage> _photoMarkerIcons = {};
   LatLng? _currentMapCenter;
+  late final PageController _recordPageController;
+  int _currentRecordPage = 0;
 
   @override
   void initState() {
     super.initState();
+    _recordPageController = PageController(viewportFraction: 0.88);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         // onMapReady에서 마커 로딩
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _recordPageController.dispose();
+    super.dispose();
   }
 
   Future<void> _preparePoiIcon() async {
@@ -236,6 +246,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final cam = await c.getCameraPosition();
       _currentMapCenter = cam.position;
     } catch (_) {}
+  }
+
+  Future<void> _openTripRecord(TripRecord record) async {
+    if (record.latitude != null && record.longitude != null) {
+      final targetLatLng = LatLng(record.latitude!, record.longitude!);
+      await _mapController?.moveCamera(
+        CameraUpdate.newCenterPosition(targetLatLng),
+        animation: CameraAnimation(500),
+      );
+      await _refreshCenter();
+      await _onMarkerTapped(record.id);
+    } else {
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TripRecordDetailScreen(recordId: record.id),
+        ),
+      );
+    }
   }
 
   Future<LatLng?> _latLngFromExifPath(String filePath) async {
@@ -549,61 +579,155 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final bool? usePhoto = await showDialog<bool>(
       context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
-        title: const Text('사진 사용'),
-        content: Image.file(File(photo.path)),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('다시 찍기'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('이 사진 사용'),
-          ),
-        ],
-      ),
+      builder: (BuildContext dialogContext) {
+        var isProcessing = false;
+        return StatefulBuilder(
+          builder: (BuildContext _, StateSetter setState) {
+            return AlertDialog(
+              title: const Text('사진 사용'),
+              content: Image.file(File(photo.path)),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: isProcessing
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('다시 찍기'),
+                ),
+                ElevatedButton(
+                  onPressed: isProcessing
+                      ? null
+                      : () {
+                          setState(() {
+                            isProcessing = true;
+                          });
+                          Navigator.of(dialogContext).pop(true);
+                        },
+                  child: const Text('이 사진 사용'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
 
     if (usePhoto == true && mounted) {
-      showDialog(
+      final textController = TextEditingController();
+      final bool? shouldSave = await showDialog<bool>(
         context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
+        builder: (dialogContext) {
+          var isSubmitting = false;
+          return StatefulBuilder(
+            builder: (BuildContext _, StateSetter setState) {
+              return AlertDialog(
+                title: const Text('AR 메모 저장'),
+                content: TextField(
+                  controller: textController,
+                  decoration: const InputDecoration(
+                    labelText: '메모 내용 (선택)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('취소'),
+                  ),
+                  ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () {
+                            setState(() {
+                              isSubmitting = true;
+                            });
+                            Navigator.of(dialogContext).pop(true);
+                          },
+                    child: const Text('저장'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
       );
+
+      final memoryText = textController.text.trim();
+      textController.dispose();
+
+      if (shouldSave != true) {
+        return;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      final rootNavigator = Navigator.of(context, rootNavigator: true);
+      var progressShown = false;
+      void showProgressDialog() {
+        if (progressShown) return;
+        progressShown = true;
+        unawaited(showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          useRootNavigator: true,
+          builder: (_) => const Center(child: CircularProgressIndicator()),
+        ));
+      }
+
+      showProgressDialog();
+
+      var creationSucceeded = false;
+      Object? failureReason;
 
       try {
         LocationPermission permission = await Geolocator.checkPermission();
         if (permission == LocationPermission.denied) {
           permission = await Geolocator.requestPermission();
-          if (permission == LocationPermission.denied ||
-              permission == LocationPermission.deniedForever) {
-            throw Exception('위치 정보 권한이 거부되었습니다.');
-          }
         }
+
+        if (permission == LocationPermission.denied ||
+            permission == LocationPermission.deniedForever) {
+          throw Exception('위치 정보 권한이 거부되었습니다.');
+        }
+
         final position = await Geolocator.getCurrentPosition();
+        final uploadRepository = ref.read(uploadRepositoryProvider);
+        final uploadResult = await uploadRepository.uploadPhoto(photo);
 
-        final repository = ref.read(uploadRepositoryProvider);
-        final result = await repository.uploadPhoto(photo);
-        final newUrl = result.url;
+        await ref.read(memoryCreatorProvider.notifier).createMemory(
+              latitude: position.latitude,
+              longitude: position.longitude,
+              text: memoryText.isEmpty ? null : memoryText,
+              photoUrl: uploadResult.url,
+            );
+        creationSucceeded = true;
+      } catch (e, stackTrace) {
+        failureReason = e;
+        debugPrint('AR 메모 저장 실패: $e\n$stackTrace');
+      } finally {
+        if (progressShown && rootNavigator.mounted) {
+          if (rootNavigator.canPop()) {
+            rootNavigator.pop();
+          }
+          progressShown = false;
+        }
+      }
 
-        if (!mounted) return;
-        Navigator.of(context).pop();
+      if (!mounted) {
+        return;
+      }
 
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => CreateTripRecordScreen(
-              initialPhotoUrls: [newUrl],
-              initialLatitude: position.latitude,
-              initialLongitude: position.longitude,
-            ),
-          ),
-        );
-      } catch (e) {
-        if (!mounted) return;
-        Navigator.of(context).pop();
+      if (creationSucceeded) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('오류: $e')),
+          const SnackBar(content: Text('새로운 AR 메모가 저장되었습니다.')),
+        );
+      } else if (failureReason != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('AR 메모 저장에 실패했습니다: $failureReason')),
         );
       }
     }
@@ -792,162 +916,75 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ),
                             );
                           }
-                          return ListView.builder(
+
+                          final clampedIndex = _currentRecordPage.clamp(0, records.length - 1);
+                          if (clampedIndex != _currentRecordPage) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted) return;
+                              if (_recordPageController.hasClients) {
+                                _recordPageController.jumpToPage(clampedIndex);
+                              }
+                              setState(() {
+                                _currentRecordPage = clampedIndex;
+                              });
+                            });
+                          }
+
+                          return ListView(
                             controller: scrollController,
-                            padding: const EdgeInsets.only(
-                                left: 16, right: 16, bottom: 16),
-                            itemCount: records.length,
-                            itemBuilder: (context, index) {
-                              final TripRecord record = records[index];
-                              return Card(
-                                margin: EdgeInsets.only(
-                                  top: index == 0 ? 8.0 : 6.0,
-                                  bottom: 6.0,
-                                ),
-                                elevation: 1.5,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                clipBehavior: Clip.antiAlias,
-                                child: InkWell(
-                                  onTap: () async {
-                                    if (record.latitude != null &&
-                                        record.longitude != null) {
-                                      final targetLatLng = LatLng(
-                                        record.latitude!,
-                                        record.longitude!,
-                                      );
-                                      await _mapController?.moveCamera(
-                                        CameraUpdate.newCenterPosition(
-                                            targetLatLng),
-                                        animation: CameraAnimation(500),
-                                      );
-                                      await _refreshCenter();
-                                      _onMarkerTapped(record.id);
-                                    } else {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              TripRecordDetailScreen(
-                                                  recordId: record.id),
-                                        ),
-                                      );
-                                    }
+                            padding: const EdgeInsets.only(bottom: 24),
+                            children: [
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                height: 320,
+                                child: PageView.builder(
+                                  controller: _recordPageController,
+                                  itemCount: records.length,
+                                  onPageChanged: (index) {
+                                    setState(() {
+                                      _currentRecordPage = index;
+                                    });
                                   },
-                                  child: Row(
-                                    crossAxisAlignment:
-                                    CrossAxisAlignment.center,
-                                    children: [
-                                      SizedBox(
-                                        width: 80,
-                                        height: 80,
-                                        child: record.photoUrls.isNotEmpty
-                                            ? Image.network(
-                                          toAbsoluteUrl(
-                                              record.photoUrls.first),
-                                          fit: BoxFit.cover,
-                                          loadingBuilder: (context, child,
-                                              loadingProgress) =>
-                                          loadingProgress == null
-                                              ? child
-                                              : Center(
-                                            child:
-                                            CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              value: loadingProgress
-                                                  .expectedTotalBytes !=
-                                                  null
-                                                  ? loadingProgress
-                                                  .cumulativeBytesLoaded /
-                                                  loadingProgress
-                                                      .expectedTotalBytes!
-                                                  : null,
-                                            ),
-                                          ),
-                                          errorBuilder: (context, error,
-                                              stackTrace) =>
-                                              Container(
-                                                color: Colors.grey[200],
-                                                child: const Icon(
-                                                  Icons
-                                                      .broken_image_outlined,
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                        )
-                                            : Container(
-                                          color: Colors.grey[200],
-                                          child: const Icon(
-                                            Icons
-                                                .image_not_supported_outlined,
-                                            color: Colors.grey,
-                                            size: 32,
-                                          ),
-                                        ),
+                                  itemBuilder: (context, index) {
+                                    final record = records[index];
+                                    final horizontalPadding = index == 0
+                                        ? 24.0
+                                        : index == records.length - 1
+                                            ? 24.0
+                                            : 12.0;
+                                    return Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: horizontalPadding,
                                       ),
-                                      Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12.0, vertical: 8.0),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                record.title,
-                                                style: bodyText1.copyWith(
-                                                    fontWeight:
-                                                    FontWeight.w600),
-                                                maxLines: 1,
-                                                overflow:
-                                                TextOverflow.ellipsis,
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                DateFormat('yyyy.MM.dd')
-                                                    .format(record.date),
-                                                style: bodyText2,
-                                              ),
-                                              const SizedBox(height: 4),
-                                              if (record.group != null)
-                                                Row(
-                                                  children: [
-                                                    Icon(
-                                                      Icons.group,
-                                                      size: 14,
-                                                      color: record.groupColor,
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      record.group!.name,
-                                                      style: bodyText2.copyWith(
-                                                        fontSize: 12,
-                                                        color:
-                                                        record.groupColor,
-                                                      ),
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow
-                                                          .ellipsis,
-                                                    ),
-                                                  ],
-                                                ),
-                                            ],
-                                          ),
-                                        ),
+                                      child: _TripRecordSlideCard(
+                                        record: record,
+                                        onTap: () => _openTripRecord(record),
                                       ),
-                                      const Padding(
-                                        padding: EdgeInsets.symmetric(
-                                            horizontal: 8.0),
-                                        child: Icon(Icons.chevron_right,
-                                            color: subTextColor),
-                                      ),
-                                    ],
-                                  ),
+                                    );
+                                  },
                                 ),
-                              );
-                            },
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: List.generate(records.length, (index) {
+                                  final isActive = index == _currentRecordPage;
+                                  return AnimatedContainer(
+                                    duration: const Duration(milliseconds: 250),
+                                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                                    height: 8,
+                                    width: isActive ? 18 : 8,
+                                    decoration: BoxDecoration(
+                                      color: isActive
+                                          ? primaryColor
+                                          : Colors.grey.shade300,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  );
+                                }),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
                           );
                         },
                         loading: () =>
@@ -973,6 +1010,154 @@ $err''',
       ),
     );
   }
+}
+
+class _TripRecordSlideCard extends StatelessWidget {
+  const _TripRecordSlideCard({
+    required this.record,
+    required this.onTap,
+  });
+
+  final TripRecord record;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final group = record.group;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              child: AspectRatio(
+                aspectRatio: 4 / 3,
+                child: record.photoUrls.isNotEmpty
+                    ? Image.network(
+                        toAbsoluteUrl(record.photoUrls.first),
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          final expected = loadingProgress.expectedTotalBytes;
+                          final loaded = loadingProgress.cumulativeBytesLoaded;
+                          final progress = expected != null ? loaded / expected : null;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              value: progress,
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: Colors.grey[200],
+                          child: const Icon(
+                            Icons.broken_image_outlined,
+                            color: Colors.grey,
+                            size: 42,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: Icon(
+                            Icons.image_not_supported_outlined,
+                            color: Colors.grey,
+                            size: 42,
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      DateFormat('yyyy.MM.dd').format(record.date),
+                      style: bodyText2.copyWith(color: subTextColor),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      record.title,
+                      style: bodyText1.copyWith(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      record.content.isNotEmpty ? record.content : '내용이 없습니다.',
+                      style: bodyText2.copyWith(height: 1.4),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Icon(
+                          record.latitude != null && record.longitude != null
+                              ? Icons.place
+                              : Icons.notes,
+                          size: 18,
+                          color: primaryColor,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            record.latitude != null && record.longitude != null
+                                ? '지도에서 보기'
+                                : '상세 정보 보기',
+                            style: bodyText2.copyWith(color: primaryColor),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (group != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: record.groupColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              group.name,
+                              style: bodyText2.copyWith(
+                                fontSize: 12,
+                                color: record.groupColor,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 }
 
 // Group 모델 (임시 - 실제 모델 import 필요)

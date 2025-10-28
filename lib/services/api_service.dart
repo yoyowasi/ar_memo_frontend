@@ -35,7 +35,25 @@ class ApiService {
 
   Uri _buildUri(String endpoint, [Map<String, dynamic>? queryParameters]) {
     final normalizedEndpoint = endpoint.startsWith('/') ? endpoint : '/$endpoint';
-    final uri = Uri.parse('$_baseUrl$normalizedEndpoint');
+    final baseUri = Uri.parse(_baseUrl);
+    final basePath = baseUri.path;
+
+    String combinedPath;
+    if (normalizedEndpoint == '/') {
+      combinedPath = basePath.isEmpty ? '/' : basePath;
+    } else if (basePath.isEmpty || basePath == '/') {
+      combinedPath = normalizedEndpoint;
+    } else if (normalizedEndpoint.startsWith(basePath)) {
+      combinedPath = normalizedEndpoint;
+    } else {
+      final trimmedBase =
+          basePath.endsWith('/') ? basePath.substring(0, basePath.length - 1) : basePath;
+      combinedPath = '$trimmedBase$normalizedEndpoint';
+    }
+
+    final normalizedPath = combinedPath.replaceAll(RegExp(r'//+'), '/');
+    final uri = baseUri.replace(path: normalizedPath);
+
     if (queryParameters == null || queryParameters.isEmpty) {
       return uri;
     }
