@@ -94,6 +94,11 @@ class _ARScreenState extends ConsumerState<ARScreen> {
     if (hits.isEmpty) return;
     final hit = hits.first;
 
+    final position = await _getCurrentPosition();
+    if (position == null) {
+      return;
+    }
+
     // ✅ 앵커 생성 (0.7.3)
     final anchor = ARPlaneAnchor(transformation: hit.worldTransform);
     final didAddAnchor = await arAnchorManager.addAnchor(anchor);
@@ -117,35 +122,33 @@ class _ARScreenState extends ConsumerState<ARScreen> {
       planeAnchor: anchor,
     );
 
-    if (didAddNode == true) {
-      final anchorData = List<double>.from(hit.worldTransform.storage);
-      final position = await _getCurrentPosition();
-
-      if (position == null) {
-        await arObjectManager.removeNode(node);
-        await arAnchorManager.removeAnchor(anchor);
-        return;
-      }
-
-      try {
-        await ref.read(memoryCreatorProvider.notifier).createMemory(
-              latitude: position.latitude,
-              longitude: position.longitude,
-              anchor: anchorData,
-            );
-        if (!mounted) return;
-        debugPrint('새로운 액자 앵커와 객체가 추가되었습니다.');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('새로운 AR 메모가 저장되었습니다.')),
-        );
-      } catch (e) {
-        await arObjectManager.removeNode(node);
-        await arAnchorManager.removeAnchor(anchor);
-        if (!mounted) return;
-        arSessionManager.onError('메모 저장에 실패했습니다: $e');
-      }
-    } else {
+    if (didAddNode != true) {
+      await arAnchorManager.removeAnchor(anchor);
       arSessionManager.onError('노드 추가 실패');
+      return;
+    }
+
+    final anchorData = List<double>.from(
+      hit.worldTransform.storage,
+      growable: false,
+    );
+
+    try {
+      await ref.read(memoryCreatorProvider.notifier).createMemory(
+            latitude: position.latitude,
+            longitude: position.longitude,
+            anchor: anchorData,
+          );
+      if (!mounted) return;
+      debugPrint('새로운 액자 앵커와 객체가 추가되었습니다.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('새로운 AR 메모가 저장되었습니다.')),
+      );
+    } catch (e) {
+      await arObjectManager.removeNode(node);
+      await arAnchorManager.removeAnchor(anchor);
+      if (!mounted) return;
+      arSessionManager.onError('메모 저장에 실패했습니다: $e');
     }
   }
 

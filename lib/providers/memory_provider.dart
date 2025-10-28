@@ -59,7 +59,7 @@ class MemoryCreator extends _$MemoryCreator {
   }) async {
     final repository = ref.read(memoryRepositoryProvider);
     state = const AsyncValue.loading();
-    try {
+    final result = await AsyncValue.guard(() async {
       final memory = await repository.createMemory(
         latitude: latitude,
         longitude: longitude,
@@ -72,13 +72,12 @@ class MemoryCreator extends _$MemoryCreator {
         anchor: anchor,
       );
 
-      state = AsyncValue.data(memory);
       ref.invalidate(myMemoriesProvider);
       ref.invalidate(memorySummaryProvider);
       return memory;
-    } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
-      rethrow;
-    }
+    });
+
+    state = result;
+    return result.requireValue();
   }
 }

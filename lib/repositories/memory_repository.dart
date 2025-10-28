@@ -42,6 +42,10 @@ class MemoryRepository {
     String? audioUrl,
     List<double>? anchor,
   }) async {
+    final sanitizedAnchor = anchor == null
+        ? null
+        : anchor.map((value) => value.toDouble()).toList(growable: false);
+
     final payload = _cleanPayload({
       'latitude': latitude,
       'longitude': longitude,
@@ -51,11 +55,11 @@ class MemoryRepository {
       'visibility': visibility,
       'photoUrl': photoUrl,
       'audioUrl': audioUrl,
-      'anchor': anchor,
+      'anchor': sanitizedAnchor,
     });
 
     final response = await _apiService.post(
-      '/memories',
+      '/api/memories',
       data: payload,
     );
 
