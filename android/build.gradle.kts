@@ -1,3 +1,5 @@
+import com.android.build.gradle.LibraryExtension
+
 allprojects {
     repositories {
         google()
@@ -17,6 +19,15 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+subprojects {
+    afterEvaluate {
+        if (name == "ar_flutter_plugin") {
+            (extensions.findByName("android") as? LibraryExtension)?.namespace =
+                "de.carius.ar_flutter_plugin"
+        }
+    }
 }
 
 configurations.all {
