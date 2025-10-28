@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:ar_memo_frontend/models/trip_record.dart';
+// exif 패키지 제거
 import 'package:flutter/material.dart';
 import 'package:ar_memo_frontend/utils/url_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,7 @@ import 'dart:math';
 
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:native_exif/native_exif.dart'; // ✅ 교체: 네이티브 EXIF
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -216,6 +218,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         CameraUpdate.newCenterPosition(currentLatLng),
         animation: CameraAnimation(500),
       );
+      _currentMapCenter = currentLatLng;
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -224,10 +227,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  // ✅ 현재 카메라 중심을 SDK에서 읽어 _currentMapCenter에 반영
+  Future<void> _refreshCenter() async {
+    if (_mapController == null) return;
+    try {
+      final cam = await _mapController!.getCameraPosition();
+      _currentMapCenter = cam.position; // kakao_map_sdk 1.2.x
+    } catch (_) {
+      // 무시
+    }
+  }
+
+  // ✅ EXIF GPS를 네이티브로 읽기 (Android 10+는 ACCESS_MEDIA_LOCATION 권한 필요)
+  Future<LatLng?> _latLngFromExifPath(String filePath) async {
+    try {
+      final exif = await Exif.fromPath(filePath);
+      final coords = await exif.getLatLong(); // ExifLatLong?
+      await exif.close();
+      if (coords == null) return null;
+      return LatLng(coords.latitude, coords.longitude);
+    } catch (e) {
+      debugPrint('native_exif read failed: $e');
+      return null;
+    }
+  }
+
   void _showCreateTripPopup(BuildContext context, WidgetRef ref) {
     final titleController = TextEditingController();
     final contentController = TextEditingController();
-    DateTime selectedDate = DateTime.now(); // ✅ non-null로 유지
+    DateTime selectedDate = DateTime.now(); // non-null 유지
     XFile? localFile;
     List<String> photoUrls = [];
     bool isProcessing = false;
@@ -242,12 +270,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           builder: (builderContext, setState) {
             Future<void> pickImageAndSetLocation() async {
               final picker = ImagePicker();
+
+              // 재인코딩 금지: imageQuality 옵션 제거 (EXIF 보존)
               final XFile? pickedFile =
-              await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+              await picker.pickImage(source: ImageSource.gallery);
               if (pickedFile == null || !builderContext.mounted) return;
 
-              debugPrint("Image picked successfully. Proceeding to location search...");
-
+              debugPrint("Image picked. Trying EXIF(native) first...");
               setState(() {
                 isProcessing = true;
                 localFile = pickedFile;
@@ -256,59 +285,48 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 photoUrls.clear();
               });
 
-              LatLng? foundLocation;
-              String locationSource = "Unknown";
-
-              try {
-                LocationPermission permission = await Geolocator.checkPermission();
-                if (permission == LocationPermission.denied) {
-                  permission = await Geolocator.requestPermission();
-                }
-
-                if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
-                  final position = await Geolocator.getCurrentPosition();
-                  foundLocation = LatLng(position.latitude, position.longitude);
-                  locationSource = "Device GPS";
-                } else {
-                  debugPrint('Location permission was denied.');
-                  if (builderContext.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('위치 권한이 없어 현재 지도 중앙을 사용합니다.')),
-                    );
-                  }
-                }
-              } catch (e) {
-                debugPrint('Could not get device location. Error: $e');
-              }
-
-              if (foundLocation == null && _mapController != null) {
-                try {
-                  foundLocation = _currentMapCenter;
-                  locationSource = "Map Center";
-                  debugPrint('Falling back to map center.');
-                } catch(e) {
-                  debugPrint('Could not get map center. Error: $e');
-                }
-              }
-
+              // 1) ✅ 사진 EXIF에서 위도/경도 추출 (native_exif)
+              LatLng? foundLocation = await _latLngFromExifPath(pickedFile.path);
               if (foundLocation != null) {
-                debugPrint('Location found via $locationSource: ${foundLocation.latitude}, ${foundLocation.longitude}');
-                setState(() {
-                  tripLatitude = foundLocation!.latitude;
-                  tripLongitude = foundLocation.longitude;
-                });
-              } else {
-                tripLatitude = 37.5665;
-                tripLongitude = 126.9780;
-                locationSource = "Default (Seoul City Hall)";
-                debugPrint('Could not determine any location. Using default: $tripLatitude, $tripLongitude');
-                if (builderContext.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('위치 정보를 가져오지 못하여 기본 위치(서울시청)를 사용합니다.')),
-                  );
+                debugPrint('EXIF GPS found: ${foundLocation.latitude}, ${foundLocation.longitude}');
+              }
+
+              // 2) 폴백: 기기 현재 위치
+              if (foundLocation == null) {
+                try {
+                  LocationPermission permission = await Geolocator.checkPermission();
+                  if (permission == LocationPermission.denied) {
+                    permission = await Geolocator.requestPermission();
+                  }
+                  if (permission == LocationPermission.always ||
+                      permission == LocationPermission.whileInUse) {
+                    final position = await Geolocator.getCurrentPosition();
+                    foundLocation = LatLng(position.latitude, position.longitude);
+                    debugPrint('Fallback to device GPS: ${position.latitude}, ${position.longitude}');
+                  }
+                } catch (e) {
+                  debugPrint('Device GPS failed: $e');
                 }
               }
 
+              // 3) 폴백: 지도 중심 (최신 중심값 보정)
+              if (foundLocation == null) {
+                await _refreshCenter();
+                if (_currentMapCenter != null) {
+                  foundLocation = _currentMapCenter;
+                  debugPrint('Fallback to map center: ${foundLocation!.latitude}, ${foundLocation.longitude}');
+                }
+              }
+
+              // 4) 폴백: 서울시청
+              foundLocation ??= const LatLng(37.5665, 126.9780);
+
+              setState(() {
+                tripLatitude = foundLocation!.latitude;
+                tripLongitude = foundLocation.longitude;
+              });
+
+              // 업로드
               if (builderContext.mounted) {
                 try {
                   final repository = ref.read(uploadRepositoryProvider);
@@ -320,9 +338,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         .showSnackBar(SnackBar(content: Text('사진 업로드 실패: $e')));
                   }
                 } finally {
-                  if (builderContext.mounted) {
-                    setState(() => isProcessing = false);
-                  }
+                  if (builderContext.mounted) setState(() => isProcessing = false);
                 }
               }
             }
@@ -361,14 +377,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 await ref.read(tripRecordsProvider.notifier).addTripRecord(
                   title: titleController.text,
                   content: contentController.text,
-                  date: selectedDate, // ✅ non-null 전달
+                  date: selectedDate,
                   photoUrls: photoUrls,
                   latitude: tripLatitude,
                   longitude: tripLongitude,
                 );
-                Navigator.pop(dialogContext);
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
+                if (mounted) Navigator.pop(dialogContext);
+                if (mounted) {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
+                }
               } catch (e) {
                 if (dialogContext.mounted) {
                   ScaffoldMessenger.of(context)
@@ -422,10 +440,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                      : (localFile == null ? const Icon(
+                                      : (localFile == null
+                                      ? const Icon(
                                     Icons.add_a_photo_outlined,
                                     color: subTextColor,
-                                  ) : null),
+                                  )
+                                      : null),
                                 ),
                               ),
                             ),
@@ -460,7 +480,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              DateFormat('yyyy. MM. dd').format(selectedDate), // ✅ non-null
+                              DateFormat('yyyy. MM. dd').format(selectedDate),
                               style: bodyText1,
                             ),
                             const Icon(Icons.calendar_today_outlined,
@@ -523,7 +543,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _handleArRecordCreation() async {
     final picker = ImagePicker();
-    final XFile? photo = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+    final XFile? photo =
+    await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
 
     if (photo == null || !mounted) return;
 
@@ -556,7 +577,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         LocationPermission permission = await Geolocator.checkPermission();
         if (permission == LocationPermission.denied) {
           permission = await Geolocator.requestPermission();
-          if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+          if (permission == LocationPermission.denied ||
+              permission == LocationPermission.deniedForever) {
             throw Exception('위치 정보 권한이 거부되었습니다.');
           }
         }
@@ -631,17 +653,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: Stack(
         children: [
           KakaoMap(
-            onMapReady: (controller) {
+            onMapReady: (controller) async {
               _mapController = controller;
               _currentMapCenter = const LatLng(37.5665, 126.9780);
               debugPrint("Map controller is ready.");
-              _moveToCurrentUserLocation();
+              await _moveToCurrentUserLocation();
               final records = ref.read(tripRecordsProvider).asData?.value;
               if (records != null) {
                 _loadAndSetMarkersFromProvider(records);
               }
             },
-            // ❌ onCameraIdle는 지원되지 않아 제거
+            // onCameraIdle 미지원 → 필요 시 버튼/제스처 후 _refreshCenter 호출로 보정
             option: const KakaoMapOption(
               position: LatLng(37.5665, 126.9780),
               zoomLevel: 14,
@@ -681,7 +703,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(width: 10),
                   FloatingActionButton(
-                    onPressed: _moveToCurrentUserLocation,
+                    onPressed: () async {
+                      await _moveToCurrentUserLocation();
+                      await _refreshCenter();
+                    },
                     mini: true,
                     backgroundColor: Colors.white,
                     elevation: 2,
@@ -697,8 +722,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             initialChildSize: 0.3,
             minChildSize: 0.15,
             maxChildSize: 0.8,
-            builder: (BuildContext context,
-                ScrollController scrollController) {
+            builder: (BuildContext context, ScrollController scrollController) {
               final recordsAsync = ref.watch(tripRecordsProvider);
               return Container(
                 decoration: BoxDecoration(
@@ -802,8 +826,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                             targetLatLng),
                                         animation: CameraAnimation(500),
                                       );
+                                      await _refreshCenter();
                                       _onMarkerTapped(record.id);
                                     } else {
+                                      // 위치 정보 없을 시 상세 화면만 이동
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
@@ -826,8 +852,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                           toAbsoluteUrl(
                                               record.photoUrls.first),
                                           fit: BoxFit.cover,
-                                          loadingBuilder: (context,
-                                              child,
+                                          loadingBuilder: (context, child,
                                               loadingProgress) =>
                                           loadingProgress == null
                                               ? child
@@ -962,11 +987,3 @@ class Group {
   Group({required this.id, required this.name});
 }
 
-// TripRecord 확장을 통한 groupColor getter
-extension TripRecordExtension on TripRecord {
-  Color get groupColor {
-    if (group == null) return primaryColor;
-    final hash = group!.name.hashCode;
-    return Color((hash & 0x00FFFFFF) | 0xFF000000).withOpacity(0.8);
-  }
-}
