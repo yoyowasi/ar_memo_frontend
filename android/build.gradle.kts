@@ -1,6 +1,7 @@
 import com.android.build.gradle.LibraryExtension
 import org.gradle.kotlin.dsl.configure
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.gradle.api.JavaVersion
 
 allprojects {
     repositories {
@@ -51,7 +52,7 @@ subprojects {
 subprojects {
     tasks.withType<KotlinCompile>().configureEach {
         kotlinOptions {
-            jvmTarget = "1.8"
+            jvmTarget = JavaVersion.VERSION_17.toString()
         }
     }
 }
