@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:flutter/material.dart';
@@ -549,20 +550,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final bool? usePhoto = await showDialog<bool>(
       context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
-        title: const Text('사진 사용'),
-        content: Image.file(File(photo.path)),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('다시 찍기'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('이 사진 사용'),
-          ),
-        ],
-      ),
+      builder: (BuildContext dialogContext) {
+        var isProcessing = false;
+        return StatefulBuilder(
+          builder: (BuildContext _, StateSetter setState) {
+            return AlertDialog(
+              title: const Text('사진 사용'),
+              content: Image.file(File(photo.path)),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: isProcessing
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('다시 찍기'),
+                ),
+                ElevatedButton(
+                  onPressed: isProcessing
+                      ? null
+                      : () {
+                          setState(() {
+                            isProcessing = true;
+                          });
+                          Navigator.of(dialogContext).pop(true);
+                        },
+                  child: const Text('이 사진 사용'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
 
     if (usePhoto == true && mounted) {
@@ -570,26 +587,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final bool? shouldSave = await showDialog<bool>(
         context: context,
         builder: (dialogContext) {
-          return AlertDialog(
-            title: const Text('AR 메모 저장'),
-            content: TextField(
-              controller: textController,
-              decoration: const InputDecoration(
-                labelText: '메모 내용 (선택)',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('취소'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: const Text('저장'),
-              ),
-            ],
+          var isSubmitting = false;
+          return StatefulBuilder(
+            builder: (BuildContext _, StateSetter setState) {
+              return AlertDialog(
+                title: const Text('AR 메모 저장'),
+                content: TextField(
+                  controller: textController,
+                  decoration: const InputDecoration(
+                    labelText: '메모 내용 (선택)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('취소'),
+                  ),
+                  ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () {
+                            setState(() {
+                              isSubmitting = true;
+                            });
+                            Navigator.of(dialogContext).pop(true);
+                          },
+                    child: const Text('저장'),
+                  ),
+                ],
+              );
+            },
           );
         },
       );
@@ -605,31 +636,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return;
       }
 
-      final navigator = Navigator.of(context, rootNavigator: true);
-      var progressVisible = false;
-
+      final rootNavigator = Navigator.of(context, rootNavigator: true);
+      var progressShown = false;
       void showProgressDialog() {
-        if (progressVisible) return;
-        progressVisible = true;
-        showDialog(
+        if (progressShown) return;
+        progressShown = true;
+        unawaited(showDialog<void>(
           context: context,
           barrierDismissible: false,
+          useRootNavigator: true,
           builder: (_) => const Center(child: CircularProgressIndicator()),
-        ).whenComplete(() {
-          progressVisible = false;
-        });
-      }
-
-      void hideProgressDialog() {
-        if (!progressVisible) return;
-        progressVisible = false;
-        if (!navigator.mounted) return;
-        if (navigator.canPop()) {
-          navigator.pop();
-        }
+        ));
       }
 
       showProgressDialog();
+
+      var creationSucceeded = false;
+      Object? failureReason;
 
       try {
         LocationPermission permission = await Geolocator.checkPermission();
@@ -652,19 +675,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               text: memoryText.isEmpty ? null : memoryText,
               photoUrl: uploadResult.url,
             );
+        creationSucceeded = true;
+      } catch (e, stackTrace) {
+        failureReason = e;
+        debugPrint('AR 메모 저장 실패: $e\n$stackTrace');
+      } finally {
+        if (progressShown && rootNavigator.mounted) {
+          if (rootNavigator.canPop()) {
+            rootNavigator.pop();
+          }
+          progressShown = false;
+        }
+      }
 
-        hideProgressDialog();
+      if (!mounted) {
+        return;
+      }
 
-        if (!mounted) return;
+      if (creationSucceeded) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('새로운 AR 메모가 저장되었습니다.')),
         );
-      } catch (e) {
-        hideProgressDialog();
-
-        if (!mounted) return;
+      } else if (failureReason != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('AR 메모 저장에 실패했습니다: $e')),
+          SnackBar(content: Text('AR 메모 저장에 실패했습니다: $failureReason')),
         );
       }
     }
