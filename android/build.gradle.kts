@@ -1,5 +1,6 @@
 import com.android.build.gradle.LibraryExtension
 import org.gradle.kotlin.dsl.configure
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 allprojects {
     repositories {
@@ -28,6 +29,14 @@ subprojects {
             extensions.configure<LibraryExtension>("android") {
                 namespace = "de.carius.ar_flutter_plugin"
             }
+        }
+    }
+}
+
+subprojects {
+    tasks.withType<KotlinCompile>().configureEach {
+        kotlinOptions {
+            jvmTarget = "1.8"
         }
     }
 }
