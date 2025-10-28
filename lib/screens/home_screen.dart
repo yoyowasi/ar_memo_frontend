@@ -566,42 +566,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
 
     if (usePhoto == true && mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
-
-      late Position position;
-      late String photoUrl;
-
-      try {
-        LocationPermission permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
-          if (permission == LocationPermission.denied ||
-              permission == LocationPermission.deniedForever) {
-            throw Exception('위치 정보 권한이 거부되었습니다.');
-          }
-        }
-
-        position = await Geolocator.getCurrentPosition();
-
-        final repository = ref.read(uploadRepositoryProvider);
-        final result = await repository.uploadPhoto(photo);
-        photoUrl = result.url;
-      } catch (e) {
-        if (!mounted) return;
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('오류: $e')),
-        );
-        return;
-      }
-
-      if (!mounted) return;
-      Navigator.of(context).pop();
-
       final textController = TextEditingController();
       final bool? shouldSave = await showDialog<bool>(
         context: context,
@@ -633,33 +597,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final memoryText = textController.text.trim();
       textController.dispose();
 
-      if (shouldSave != true || !mounted) {
+      if (shouldSave != true) {
         return;
       }
 
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
+      if (!mounted) {
+        return;
+      }
+
+      final navigator = Navigator.of(context, rootNavigator: true);
+      var progressVisible = false;
+
+      void showProgressDialog() {
+        if (progressVisible) return;
+        progressVisible = true;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const Center(child: CircularProgressIndicator()),
+        );
+      }
+
+      void hideProgressDialog() {
+        if (!progressVisible) return;
+        navigator.pop();
+        progressVisible = false;
+      }
+
+      showProgressDialog();
 
       try {
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+
+        if (permission == LocationPermission.denied ||
+            permission == LocationPermission.deniedForever) {
+          throw Exception('위치 정보 권한이 거부되었습니다.');
+        }
+
+        final position = await Geolocator.getCurrentPosition();
+        final uploadRepository = ref.read(uploadRepositoryProvider);
+        final uploadResult = await uploadRepository.uploadPhoto(photo);
+
         await ref.read(memoryCreatorProvider.notifier).createMemory(
               latitude: position.latitude,
               longitude: position.longitude,
               text: memoryText.isEmpty ? null : memoryText,
-              photoUrl: photoUrl,
+              photoUrl: uploadResult.url,
             );
 
-        if (!mounted) return;
-        Navigator.of(context).pop();
+        hideProgressDialog();
 
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('새로운 AR 메모가 저장되었습니다.')),
         );
       } catch (e) {
+        hideProgressDialog();
+
         if (!mounted) return;
-        Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('AR 메모 저장에 실패했습니다: $e')),
         );
