@@ -42,23 +42,6 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
   @override
   void initState() {
     super.initState();
-    ref.listen<AsyncValue<List<Memory>>>(
-      myMemoriesProvider,
-      (_, next) => next.whenOrNull(
-        data: (memories) {
-          _latestMemories = memories;
-          _refreshNearbyMemories();
-          unawaited(_syncAnchorsWithMemories());
-        },
-      ),
-    );
-
-    ref.read(myMemoriesProvider).whenOrNull(
-          data: (memories) {
-            _latestMemories = memories;
-            _refreshNearbyMemories();
-          },
-        );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _ensureLocationReady();
@@ -125,8 +108,9 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
             }
 
             await objectManager.removeNode(existing.node);
-            if (existing.anchor != null && anchorManager != null) {
-              await anchorManager.removeAnchor(existing.anchor!);
+            final existingAnchor = existing.anchor;
+            if (existingAnchor != null && anchorManager != null) {
+              await anchorManager.removeAnchor(existingAnchor);
             }
             _placedContents.remove(placementId);
           }
@@ -187,8 +171,9 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
           if (content == null) continue;
 
           await objectManager.removeNode(content.node);
-          if (content.anchor != null && anchorManager != null) {
-            await anchorManager.removeAnchor(content.anchor!);
+          final anchorToRemove = content.anchor;
+          if (anchorToRemove != null && anchorManager != null) {
+            await anchorManager.removeAnchor(anchorToRemove);
           }
         }
       } finally {
@@ -360,6 +345,21 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
   @override
   Widget build(BuildContext context) {
     final memoriesAsync = ref.watch(myMemoriesProvider);
+
+    ref.listen<AsyncValue<List<Memory>>>(
+      myMemoriesProvider,
+      (_, next) => next.whenOrNull(
+        data: (memories) {
+          if (!mounted) return;
+          _latestMemories = memories;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _refreshNearbyMemories();
+            unawaited(_syncAnchorsWithMemories());
+          });
+        },
+      ),
+    );
 
     return Scaffold(
       appBar: AppBar(
