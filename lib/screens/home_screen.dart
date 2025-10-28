@@ -8,7 +8,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
-import 'package:ar_memo_frontend/screens/ar_viewer_screen.dart';
 import 'package:ar_memo_frontend/screens/create_trip_record_screen.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
@@ -28,7 +27,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   KakaoMapController? _mapController;
   final Random _random = Random();
-  String? _selectedMarkerId;
 
   final Map<String, String> _markerInfoWindows = {};
   final Map<String, Poi> _pois = {};
@@ -37,6 +35,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // Photo marker cache and selection tracking
   String? _previouslySelectedMarkerId;
   final Map<String, KImage> _photoMarkerIcons = {};
+  LatLng? _currentMapCenter;
 
   @override
   void initState() {
@@ -50,7 +49,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _preparePoiIcon() async {
     if (_poiIcon != null) return;
-    // 위젯을 아이콘으로 렌더링 (패키지 예시 방식)
     _poiIcon = await KImage.fromWidget(
       const Icon(Icons.place, size: 28),
       const Size(36, 36),
@@ -59,65 +57,59 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _clearAllPois() async {
     if (_mapController == null) return;
-    // Manual iteration to remove all POIs as there is no 'clear' method
     await Future.wait(_pois.values.map((poi) => _mapController!.labelLayer.removePoi(poi)));
-
-    // Still need to clear local state
     _pois.clear();
     _markerInfoWindows.clear();
     _previouslySelectedMarkerId = null;
     _photoMarkerIcons.clear();
   }
 
-  Future<void> _loadAndSetMarkersFromProvider() async {
-    final recordsAsyncValue = ref.read(tripRecordsProvider);
+  Future<void> _loadAndSetMarkersFromProvider(List<TripRecord> records) async {
     if (_mapController == null) return;
 
     await _clearAllPois();
     await _preparePoiIcon();
 
-    recordsAsyncValue.whenData((records) async {
-      final style = PoiStyle(icon: _poiIcon!);
+    final style = PoiStyle(icon: _poiIcon!);
 
-      for (final record in records) {
-        double lat, lng;
-        String infoTitle = record.title;
+    for (final record in records) {
+      double lat, lng;
+      String infoTitle = record.title;
 
-        if (record.latitude != null && record.longitude != null) {
-          lat = record.latitude!;
-          lng = record.longitude!;
-        } else {
-          lat = 37.5665 + (_random.nextDouble() * 0.01 - 0.005);
-          lng = 126.9780 + (_random.nextDouble() * 0.01 - 0.005);
-          infoTitle += " (위치 없음)";
-        }
-
-        final markerId = record.id;
-        _markerInfoWindows[markerId] = infoTitle;
-
-        final poi = await _mapController!.labelLayer.addPoi(
-          LatLng(lat, lng),
-          style: style,
-          id: markerId,
-          text: infoTitle,
-          onClick: () => _onMarkerTapped(markerId),
-        );
-
-        _pois[markerId] = poi;
+      if (record.latitude != null && record.longitude != null) {
+        lat = record.latitude!;
+        lng = record.longitude!;
+      } else {
+        lat = 37.5665 + (_random.nextDouble() * 0.01 - 0.005);
+        lng = 126.9780 + (_random.nextDouble() * 0.01 - 0.005);
+        infoTitle += " (위치 없음)";
       }
 
-      debugPrint("${_pois.length} pois prepared for map.");
-    });
+      final markerId = record.id;
+      _markerInfoWindows[markerId] = infoTitle;
+
+      final poi = await _mapController!.labelLayer.addPoi(
+        LatLng(lat, lng),
+        style: style,
+        id: markerId,
+        text: infoTitle,
+        onClick: () => _onMarkerTapped(markerId),
+      );
+
+      _pois[markerId] = poi;
+    }
+
+    debugPrint("${_pois.length} pois prepared for map.");
   }
 
   Future<void> _onMarkerTapped(String recordId) async {
-    // Revert previously selected marker to default icon
+    if (_mapController == null) return;
+
     if (_previouslySelectedMarkerId != null &&
         _previouslySelectedMarkerId != recordId) {
       final oldPoi = _pois[_previouslySelectedMarkerId!];
       if (oldPoi != null) {
         final defaultStyle = PoiStyle(icon: _poiIcon!);
-        // Re-add with default style
         await _mapController?.labelLayer.removePoi(oldPoi);
         final newPoi = await _mapController!.labelLayer.addPoi(
           oldPoi.position,
@@ -134,7 +126,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final record = records.firstWhere((r) => r.id == recordId,
         orElse: () => throw Exception("Record not found for ID: $recordId"));
 
-    // Show SnackBar
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -155,12 +146,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
 
-    // Update marker icon to photo if available
     if (record.photoUrls.isNotEmpty) {
       KImage? photoIcon = _photoMarkerIcons[recordId];
 
       if (photoIcon == null) {
-        // Create and cache the icon
         photoIcon = await KImage.fromWidget(
           Container(
             width: 70,
@@ -185,7 +174,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final poiToUpdate = _pois[recordId];
       if (poiToUpdate != null) {
         final photoStyle = PoiStyle(icon: photoIcon);
-        // Re-add with photo style
         await _mapController?.labelLayer.removePoi(poiToUpdate);
         final newPoi = await _mapController!.labelLayer.addPoi(
           poiToUpdate.position,
@@ -199,7 +187,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     setState(() {
-      _selectedMarkerId = recordId;
       _previouslySelectedMarkerId = recordId;
     });
     debugPrint('Poi Tapped: $recordId');
@@ -214,7 +201,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied ||
             permission == LocationPermission.deniedForever) {
-          // Handle case where user denies permission
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('위치 정보 권한이 필요합니다.')),
@@ -228,7 +214,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
       await _mapController!.moveCamera(
         CameraUpdate.newCenterPosition(currentLatLng),
-        animation: const CameraAnimation(500),
+        animation: CameraAnimation(500),
       );
     } catch (e) {
       if (!mounted) return;
@@ -241,41 +227,102 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _showCreateTripPopup(BuildContext context, WidgetRef ref) {
     final titleController = TextEditingController();
     final contentController = TextEditingController();
-    DateTime? selectedDate = DateTime.now();
-    List<XFile> localFiles = [];
+    DateTime selectedDate = DateTime.now(); // ✅ non-null로 유지
+    XFile? localFile;
     List<String> photoUrls = [];
-    bool isUploading = false;
+    bool isProcessing = false;
     bool isLoading = false;
+    double? tripLatitude;
+    double? tripLongitude;
 
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
         return StatefulBuilder(
           builder: (builderContext, setState) {
-            Future<void> pickAndUploadImage() async {
+            Future<void> pickImageAndSetLocation() async {
               final picker = ImagePicker();
-              final List<XFile> pickedFiles =
-              await picker.pickMultiImage(imageQuality: 85);
-              if (pickedFiles.isEmpty || !builderContext.mounted) return;
+              final XFile? pickedFile =
+              await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+              if (pickedFile == null || !builderContext.mounted) return;
+
+              debugPrint("Image picked successfully. Proceeding to location search...");
+
               setState(() {
-                isUploading = true;
-                localFiles.addAll(pickedFiles);
+                isProcessing = true;
+                localFile = pickedFile;
+                tripLatitude = null;
+                tripLongitude = null;
+                photoUrls.clear();
               });
+
+              LatLng? foundLocation;
+              String locationSource = "Unknown";
+
               try {
-                final repository = ref.read(uploadRepositoryProvider);
-                final results = await Future.wait(
-                    pickedFiles.map((file) => repository.uploadPhoto(file)));
-                photoUrls.addAll(results.map((result) => result.url));
+                LocationPermission permission = await Geolocator.checkPermission();
+                if (permission == LocationPermission.denied) {
+                  permission = await Geolocator.requestPermission();
+                }
+
+                if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+                  final position = await Geolocator.getCurrentPosition();
+                  foundLocation = LatLng(position.latitude, position.longitude);
+                  locationSource = "Device GPS";
+                } else {
+                  debugPrint('Location permission was denied.');
+                  if (builderContext.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('위치 권한이 없어 현재 지도 중앙을 사용합니다.')),
+                    );
+                  }
+                }
               } catch (e) {
+                debugPrint('Could not get device location. Error: $e');
+              }
+
+              if (foundLocation == null && _mapController != null) {
+                try {
+                  foundLocation = _currentMapCenter;
+                  locationSource = "Map Center";
+                  debugPrint('Falling back to map center.');
+                } catch(e) {
+                  debugPrint('Could not get map center. Error: $e');
+                }
+              }
+
+              if (foundLocation != null) {
+                debugPrint('Location found via $locationSource: ${foundLocation.latitude}, ${foundLocation.longitude}');
+                setState(() {
+                  tripLatitude = foundLocation!.latitude;
+                  tripLongitude = foundLocation.longitude;
+                });
+              } else {
+                tripLatitude = 37.5665;
+                tripLongitude = 126.9780;
+                locationSource = "Default (Seoul City Hall)";
+                debugPrint('Could not determine any location. Using default: $tripLatitude, $tripLongitude');
                 if (builderContext.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('이미지 업로드 실패: $e')));
-                  localFiles.removeWhere((lf) =>
-                      pickedFiles.any((pf) => pf.path == lf.path));
+                    const SnackBar(content: Text('위치 정보를 가져오지 못하여 기본 위치(서울시청)를 사용합니다.')),
+                  );
                 }
-              } finally {
-                if (builderContext.mounted) {
-                  setState(() => isUploading = false);
+              }
+
+              if (builderContext.mounted) {
+                try {
+                  final repository = ref.read(uploadRepositoryProvider);
+                  final result = await repository.uploadPhoto(pickedFile);
+                  photoUrls.add(result.url);
+                } catch (e) {
+                  if (builderContext.mounted) {
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text('사진 업로드 실패: $e')));
+                  }
+                } finally {
+                  if (builderContext.mounted) {
+                    setState(() => isProcessing = false);
+                  }
                 }
               }
             }
@@ -283,11 +330,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Future<void> selectDate() async {
               final picked = await showDatePicker(
                 context: builderContext,
-                initialDate: selectedDate ?? DateTime.now(),
+                initialDate: selectedDate,
                 firstDate: DateTime(2000),
                 lastDate: DateTime.now().add(const Duration(days: 1)),
               );
-              if (picked != null && picked != selectedDate) {
+              if (picked != null) {
                 setState(() => selectedDate = picked);
               }
             }
@@ -299,46 +346,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 );
                 return;
               }
-              if (selectedDate == null) {
+              if (photoUrls.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('날짜를 선택해주세요.')),
+                  const SnackBar(content: Text('사진이 업로드되지 않았습니다.')),
                 );
                 return;
               }
-              setState(() => isLoading = true);
-              double? currentLat;
-              double? currentLng;
 
-              if (_mapController != null) {
-                try {
-                  final camPos =
-                  await _mapController!.getCameraPosition(); // position, zoom
-                  currentLat = camPos.position.latitude;
-                  currentLng = camPos.position.longitude;
-                } catch (e) {
-                  debugPrint("지도 중심 좌표 가져오기 실패: $e");
-                }
-              }
+              setState(() => isLoading = true);
+
+              debugPrint('DEBUG: Before addTripRecord - Lat: $tripLatitude, Lng: $tripLongitude');
 
               try {
                 await ref.read(tripRecordsProvider.notifier).addTripRecord(
                   title: titleController.text,
                   content: contentController.text,
-                  date: selectedDate!,
+                  date: selectedDate, // ✅ non-null 전달
                   photoUrls: photoUrls,
-                  latitude: currentLat,
-                  longitude: currentLng,
+                  latitude: tripLatitude,
+                  longitude: tripLongitude,
                 );
                 Navigator.pop(dialogContext);
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('일기가 저장되었습니다.')));
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
               } catch (e) {
                 if (dialogContext.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('저장 실패: $e')));
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text('저장 실패: $e')));
                 }
               } finally {
-                if (dialogContext.mounted && mounted) {
+                if (mounted && dialogContext.mounted) {
                   setState(() => isLoading = false);
                 }
               }
@@ -365,14 +402,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           AspectRatio(
                             aspectRatio: 1,
                             child: InkWell(
-                              onTap: isUploading ? null : pickAndUploadImage,
+                              onTap: isProcessing ? null : pickImageAndSetLocation,
                               child: Container(
                                 decoration: BoxDecoration(
                                   color: Colors.grey[200],
                                   borderRadius: BorderRadius.circular(8),
+                                  image: localFile != null
+                                      ? DecorationImage(
+                                      image: FileImage(File(localFile!.path)),
+                                      fit: BoxFit.cover)
+                                      : null,
                                 ),
                                 child: Center(
-                                  child: isUploading
+                                  child: isProcessing
                                       ? const SizedBox(
                                     width: 24,
                                     height: 24,
@@ -380,29 +422,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                      : const Icon(
+                                      : (localFile == null ? const Icon(
                                     Icons.add_a_photo_outlined,
                                     color: subTextColor,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: localFiles.length,
-                              separatorBuilder: (_, __) =>
-                              const SizedBox(width: 8),
-                              itemBuilder: (ctx, index) => SizedBox(
-                                width: 100,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    File(localFiles[index].path),
-                                    fit: BoxFit.cover,
-                                  ),
+                                  ) : null),
                                 ),
                               ),
                             ),
@@ -437,10 +460,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              selectedDate == null
-                                  ? '날짜 선택'
-                                  : DateFormat('yyyy. MM. dd')
-                                  .format(selectedDate!),
+                              DateFormat('yyyy. MM. dd').format(selectedDate), // ✅ non-null
                               style: bodyText1,
                             ),
                             const Icon(Icons.calendar_today_outlined,
@@ -502,13 +522,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _handleArRecordCreation() async {
-    // 1. Take photo
     final picker = ImagePicker();
     final XFile? photo = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
 
     if (photo == null || !mounted) return;
 
-    // 2. Show confirmation dialog
     final bool? usePhoto = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
@@ -527,7 +545,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
 
-    // 3. Get location, upload, and navigate
     if (usePhoto == true && mounted) {
       showDialog(
         context: context,
@@ -536,7 +553,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
 
       try {
-        // Get location
         LocationPermission permission = await Geolocator.checkPermission();
         if (permission == LocationPermission.denied) {
           permission = await Geolocator.requestPermission();
@@ -546,15 +562,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         }
         final position = await Geolocator.getCurrentPosition();
 
-        // Upload photo
         final repository = ref.read(uploadRepositoryProvider);
         final result = await repository.uploadPhoto(photo);
         final newUrl = result.url;
 
         if (!mounted) return;
-        Navigator.of(context).pop(); // Dismiss loading indicator
+        Navigator.of(context).pop();
 
-        // Navigate to create screen with photo and location
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => CreateTripRecordScreen(
@@ -566,7 +580,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         );
       } catch (e) {
         if (!mounted) return;
-        Navigator.of(context).pop(); // Dismiss loading indicator
+        Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('오류: $e')),
         );
@@ -577,10 +591,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     ref.listen(tripRecordsProvider, (_, next) {
-      if (next is AsyncData) {
+      if (next is AsyncData<List<TripRecord>>) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _loadAndSetMarkersFromProvider();
+          if (mounted && _mapController != null) {
+            _loadAndSetMarkersFromProvider(next.value);
           }
         });
       }
@@ -619,10 +633,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           KakaoMap(
             onMapReady: (controller) {
               _mapController = controller;
+              _currentMapCenter = const LatLng(37.5665, 126.9780);
               debugPrint("Map controller is ready.");
               _moveToCurrentUserLocation();
-              _loadAndSetMarkersFromProvider();
+              final records = ref.read(tripRecordsProvider).asData?.value;
+              if (records != null) {
+                _loadAndSetMarkersFromProvider(records);
+              }
             },
+            // ❌ onCameraIdle는 지원되지 않아 제거
             option: const KakaoMapOption(
               position: LatLng(37.5665, 126.9780),
               zoomLevel: 14,
@@ -699,6 +718,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 child: Column(
                   children: [
+                    // 핸들 UI
                     Container(
                       width: 50,
                       height: 5,
@@ -708,6 +728,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
+                    // "나의 기록" 타이틀 및 정렬 버튼
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20.0),
                       child: Row(
@@ -730,6 +751,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    // 기록 목록 또는 빈 상태 UI
                     Expanded(
                       child: recordsAsync.when(
                         data: (records) {
@@ -778,38 +800,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       await _mapController?.moveCamera(
                                         CameraUpdate.newCenterPosition(
                                             targetLatLng),
-                                        animation:
-                                        const CameraAnimation(500),
+                                        animation: CameraAnimation(500),
                                       );
-                                      setState(
-                                              () => _selectedMarkerId = record.id);
-                                      ScaffoldMessenger.of(context)
-                                          .hideCurrentSnackBar();
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            _markerInfoWindows[record.id] ??
-                                                '정보 없음',
-                                          ),
-                                          duration:
-                                          const Duration(seconds: 3),
-                                          action: SnackBarAction(
-                                            label: '상세보기',
-                                            onPressed: () {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (context) =>
-                                                      TripRecordDetailScreen(
-                                                          recordId:
-                                                          record.id),
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                      );
+                                      _onMarkerTapped(record.id);
                                     } else {
                                       Navigator.push(
                                         context,
@@ -904,8 +897,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                                     Icon(
                                                       Icons.group,
                                                       size: 14,
-                                                      color: record.groupColor ??
-                                                          primaryColor,
+                                                      color: record.groupColor,
                                                     ),
                                                     const SizedBox(width: 4),
                                                     Text(
@@ -913,8 +905,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                                       style: bodyText2.copyWith(
                                                         fontSize: 12,
                                                         color:
-                                                        record.groupColor ??
-                                                            primaryColor,
+                                                        record.groupColor,
                                                       ),
                                                       maxLines: 1,
                                                       overflow: TextOverflow
@@ -945,7 +936,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           child: Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: Text(
-                              '기록 로딩 오류:\n$err',
+                              '''기록 로딩 오류:
+$err''',
                               textAlign: TextAlign.center,
                             ),
                           ),
@@ -963,17 +955,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-// Group 모델 (임시)
+// Group 모델 (임시 - 실제 모델 import 필요)
 class Group {
   final String id;
   final String name;
   Group({required this.id, required this.name});
 }
 
+// TripRecord 확장을 통한 groupColor getter
 extension TripRecordExtension on TripRecord {
-  Color? get groupColor {
-    if (group == null) return null;
-    // 간단한 해시 기반 색상 생성
+  Color get groupColor {
+    if (group == null) return primaryColor;
     final hash = group!.name.hashCode;
     return Color((hash & 0x00FFFFFF) | 0xFF000000).withOpacity(0.8);
   }
