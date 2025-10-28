@@ -1,3 +1,6 @@
+import com.android.build.gradle.LibraryExtension
+import org.gradle.kotlin.dsl.configure
+
 allprojects {
     repositories {
         google()
@@ -19,6 +22,16 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+subprojects {
+    plugins.withId("com.android.library") {
+        if (name == "ar_flutter_plugin") {
+            extensions.configure<LibraryExtension>("android") {
+                namespace = "de.carius.ar_flutter_plugin"
+            }
+        }
+    }
+}
+
 configurations.all {
     resolutionStrategy {
         eachDependency {
@@ -32,4 +45,3 @@ configurations.all {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
-
