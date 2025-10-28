@@ -32,7 +32,8 @@ class TripRecordListScreen extends ConsumerWidget {
           builder: (builderContext, setState) {
             Future<void> pickAndUploadImage() async {
               final picker = ImagePicker();
-              final List<XFile> pickedFiles = await picker.pickMultiImage(imageQuality: 85);
+              // imageQuality를 지정하면 EXIF GPS 정보가 삭제되므로 그대로 불러온다.
+              final List<XFile> pickedFiles = await picker.pickMultiImage();
               if (pickedFiles.isEmpty || !builderContext.mounted) return;
               setState(() { isUploading = true; localFiles.addAll(pickedFiles); });
               try {

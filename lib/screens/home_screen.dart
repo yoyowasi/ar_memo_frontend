@@ -543,8 +543,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _handleArRecordCreation() async {
     final picker = ImagePicker();
+    // imageQuality 옵션을 주면 재인코딩되면서 EXIF GPS가 제거되므로 그대로 사용한다.
     final XFile? photo =
-    await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+        await picker.pickImage(source: ImageSource.camera);
 
     if (photo == null || !mounted) return;
 
