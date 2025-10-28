@@ -28,7 +28,8 @@ dependencies:
   image_picker: ^1.1.2
   vector_math: ^2.1.4
   intl: ^0.19.0
-  ar_flutter_plugin_updated: ^0.0.1 # AR 기능 사용 시 필요
+  geolocator: ^11.1.0
+  ar_flutter_plugin: ^1.0.7 # AR 기능 사용 시 필요
 
 dev_dependencies:
   flutter_test:
