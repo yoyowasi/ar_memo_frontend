@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:ar_memo_frontend/models/memory.dart';
 import 'package:ar_memo_frontend/models/memory_summary.dart';
 import 'package:ar_memo_frontend/services/api_service.dart';
+import 'package:flutter/foundation.dart';
 
 /// Memory 데이터와 관련된 API 통신을 담당하는 클래스
 class MemoryRepository {
@@ -135,6 +136,14 @@ class MemoryRepository {
         return MemorySummary.fromJson(summaryJson);
       }
       throw Exception('Invalid summary response format');
+    }
+    if (response.statusCode >= 500) {
+      debugPrint(
+          'Memory summary request failed with ${response.statusCode}: ${response.body}');
+      return const MemorySummary(total: 0, nearby: 0, thisMonth: 0);
+    }
+    if (response.statusCode == 404) {
+      return const MemorySummary(total: 0, nearby: 0, thisMonth: 0);
     }
     throw Exception('Failed to load memory summary: ${response.body}');
   }
