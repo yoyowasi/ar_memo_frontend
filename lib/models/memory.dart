@@ -44,14 +44,50 @@ class Memory {
   }
 
   factory Memory.fromJson(Map<String, dynamic> json) {
-    double lat = 0.0, lng = 0.0;
-    if (json['location']?['coordinates'] is List) {
-      final coords = json['location']['coordinates'] as List;
-      if (coords.length >= 2 && coords[0] is num && coords[1] is num) {
-        lng = (coords[0] as num).toDouble();
-        lat = (coords[1] as num).toDouble();
+    double? lat;
+    double? lng;
+
+    double? parseCoordinate(dynamic value) {
+      if (value is num) {
+        return value.toDouble();
+      }
+      if (value is String) {
+        return double.tryParse(value);
+      }
+      return null;
+    }
+
+    void tryAssign(dynamic latitudeSource, dynamic longitudeSource) {
+      final parsedLat = parseCoordinate(latitudeSource);
+      final parsedLng = parseCoordinate(longitudeSource);
+      if (parsedLat != null && parsedLng != null) {
+        lat ??= parsedLat;
+        lng ??= parsedLng;
       }
     }
+
+    final location = json['location'];
+    if (location is Map<String, dynamic>) {
+      if (location['coordinates'] is List) {
+        final coords = location['coordinates'] as List;
+        if (coords.length >= 2) {
+          tryAssign(coords[1], coords[0]);
+        }
+      } else {
+        tryAssign(
+          location['lat'] ?? location['latitude'],
+          location['lng'] ?? location['longitude'],
+        );
+      }
+    }
+
+    tryAssign(
+      json['latitude'] ?? json['lat'],
+      json['longitude'] ?? json['lng'],
+    );
+
+    final latValue = lat ?? 0.0;
+    final lngValue = lng ?? 0.0;
 
     List<double>? anchorData;
     if (json['anchor'] is List) {
@@ -67,8 +103,8 @@ class Memory {
     return Memory(
       id: json['_id'],
       userId: json['userId'],
-      latitude: lat,
-      longitude: lng,
+      latitude: latValue,
+      longitude: lngValue,
       text: json['text'],
       photoUrl: json['photoUrl'],
       audioUrl: json['audioUrl'],
