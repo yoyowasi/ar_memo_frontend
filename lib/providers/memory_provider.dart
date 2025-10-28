@@ -78,6 +78,6 @@ class MemoryCreator extends _$MemoryCreator {
     });
 
     state = result;
-    return result.requireValue();
+    return result.requireValue;
   }
 }
