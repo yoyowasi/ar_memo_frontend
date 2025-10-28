@@ -6,8 +6,17 @@ import 'package:ar_memo_frontend/screens/trip_record_list_screen.dart'; // 여�
 import 'package:ar_memo_frontend/screens/my_page_screen.dart'; // 프로필 스크린
 import 'package:ar_memo_frontend/theme/colors.dart';
 
+class MainScreenTabIndexNotifier extends StateNotifier<int> {
+  MainScreenTabIndexNotifier() : super(0);
+
+  void setIndex(int index) => state = index;
+}
+
 // Provider to manage the selected tab index
-final mainScreenTabIndexProvider = StateProvider<int>((ref) => 0);
+final mainScreenTabIndexProvider =
+    StateNotifierProvider<MainScreenTabIndexNotifier, int>(
+  (ref) => MainScreenTabIndexNotifier(),
+);
 
 class MainScreen extends ConsumerWidget { // Convert to ConsumerWidget
   const MainScreen({super.key});
@@ -50,7 +59,8 @@ class MainScreen extends ConsumerWidget { // Convert to ConsumerWidget
           selectedFontSize: 12, // 선택된 폰트 크기
           unselectedFontSize: 12, // 선택되지 않은 폰트 크기
           currentIndex: selectedIndex,
-          onTap: (index) => ref.read(mainScreenTabIndexProvider.notifier).state = index,
+          onTap: (index) =>
+              ref.read(mainScreenTabIndexProvider.notifier).setIndex(index),
           items: const <BottomNavigationBarItem>[
             // 홈 (지도) 탭
             BottomNavigationBarItem(
