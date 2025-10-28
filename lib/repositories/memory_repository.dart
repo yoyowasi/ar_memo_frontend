@@ -9,6 +9,12 @@ class MemoryRepository {
 
   MemoryRepository(this._apiService);
 
+  Map<String, dynamic> _cleanPayload(Map<String, dynamic> payload) {
+    payload.removeWhere((key, value) =>
+        value == null || (value is Iterable && value.isEmpty));
+    return payload;
+  }
+
   /// API 응답에서 실제 데이터 목록을 추출하는 private 헬퍼 메서드
   List<dynamic> _unwrapList(dynamic data) {
     if (data is List<dynamic>) {
@@ -22,6 +28,52 @@ class MemoryRepository {
       }
     }
     return const [];
+  }
+
+  /// 새로운 Memory를 생성하는 메서드
+  Future<Memory> createMemory({
+    required double latitude,
+    required double longitude,
+    String? text,
+    List<String>? tags,
+    String? groupId,
+    String? visibility,
+    String? photoUrl,
+    String? audioUrl,
+    List<double>? anchor,
+  }) async {
+    final sanitizedAnchor = anchor == null
+        ? null
+        : anchor.map((value) => value.toDouble()).toList(growable: false);
+
+    final payload = _cleanPayload({
+      'latitude': latitude,
+      'longitude': longitude,
+      'text': text,
+      'tags': tags,
+      'groupId': groupId,
+      'visibility': visibility,
+      'photoUrl': photoUrl,
+      'audioUrl': audioUrl,
+      'anchor': sanitizedAnchor,
+    });
+
+    final response = await _apiService.post(
+      '/api/memories',
+      data: payload,
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final payload = decoded['memory'] is Map<String, dynamic>
+            ? decoded['memory'] as Map<String, dynamic>
+            : decoded;
+        return Memory.fromJson(payload);
+      }
+      throw Exception('Invalid create memory response format');
+    }
+    throw Exception('Failed to create memory: ${response.body}');
   }
 
   /// 나의 Memory 목록을 가져오는 메서드
