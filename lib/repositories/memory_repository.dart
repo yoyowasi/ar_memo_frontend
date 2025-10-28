@@ -59,7 +59,7 @@ class MemoryRepository {
     });
 
     final response = await _apiService.post(
-      '/api/memories',
+      '/memories',
       data: payload,
     );
 
