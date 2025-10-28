@@ -60,7 +60,7 @@ class MemoryRepository {
     });
 
     final response = await _apiService.post(
-      '/memories',
+      '/api/memories',
       data: payload,
     );
 
@@ -87,7 +87,7 @@ class MemoryRepository {
     String? month,
   }) async {
     final response = await _apiService.get(
-      '/memories',
+      '/api/memories',
       queryParameters: {
         'page': page,
         'limit': limit,
@@ -124,7 +124,7 @@ class MemoryRepository {
     }
 
     final response = await _apiService.get(
-      '/memories/stats/summary',
+      '/api/memories/stats/summary',
       queryParameters: queryParameters,
     );
     if (response.statusCode == 200) {
@@ -150,7 +150,7 @@ class MemoryRepository {
 
   /// ID로 특정 Memory의 상세 정보를 가져오는 메서드
   Future<Memory> getMemoryById(String id) async {
-    final response = await _apiService.get('/memories/$id');
+    final response = await _apiService.get('/api/memories/$id');
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) {
@@ -165,7 +165,7 @@ class MemoryRepository {
 
   /// 그룹 ID로 메모 목록을 가져오는 메소드
   Future<List<Memory>> getGroupMemories(String groupId) async {
-    final response = await _apiService.get('/groups/$groupId/memories');
+    final response = await _apiService.get('/api/groups/$groupId/memories');
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
       final items = _unwrapList(decoded);
