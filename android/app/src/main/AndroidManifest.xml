@@ -2,7 +2,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-feature android:name="android.hardware.camera.ar" android:required="true"/>
+    <uses-feature android:name="android.hardware.camera.ar" android:required="false"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -22,7 +22,8 @@
                 android:theme="@style/LaunchTheme"
                 android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
                 android:hardwareAccelerated="true"
-                android:windowSoftInputMode="adjustResize">
+                android:windowSoftInputMode="adjustResize"
+                android:enableOnBackInvokedCallback="true">
             <meta-data
                     android:name="io.flutter.embedding.android.NormalTheme"
                     android:resource="@style/NormalTheme"
@@ -46,7 +47,7 @@
 
         
 
-        <meta-data android:name="com.google.ar.core" android:value="required" tools:replace="android:value"/>
+        <meta-data android:name="com.google.ar.core" android:value="optional" tools:replace="android:value"/>
         <!-- <meta-data android:name="com.google.android.geo.API_KEY" android:value="YOUR_GOOGLE_MAPS_API_KEY"/> -->
         <meta-data android:name="com.kakao.sdk.AppKey" android:value="${KAKAO_NATIVE_APP_KEY}"/>
 

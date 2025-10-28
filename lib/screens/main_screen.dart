@@ -13,11 +13,11 @@ class MainScreen extends ConsumerWidget { // Convert to ConsumerWidget
   const MainScreen({super.key});
 
   // 탭 변경: 홈(지도), AR 뷰어, 여행 기록(일기), 프로필
-  static const List<Widget> _widgetOptions = <Widget>[
-    HomeScreen(),
-    ArViewerScreen(),
-    TripRecordListScreen(),
-    MyPageScreen(),
+  static final List<Widget> _widgetOptions = <Widget>[
+    const HomeScreen(),
+    const ARViewerScreen(),
+    const TripRecordListScreen(),
+    const MyPageScreen(),
   ];
 
   @override
