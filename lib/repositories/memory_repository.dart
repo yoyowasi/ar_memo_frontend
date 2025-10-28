@@ -12,7 +12,7 @@ class MemoryRepository {
 
   Map<String, dynamic> _cleanPayload(Map<String, dynamic> payload) {
     payload.removeWhere((key, value) =>
-        value == null || (value is Iterable && value.isEmpty));
+    value == null || (value is Iterable && value.isEmpty));
     return payload;
   }
 
@@ -59,6 +59,7 @@ class MemoryRepository {
       'anchor': sanitizedAnchor,
     });
 
+    // 404 오류 수정을 위해 '/api/memories' -> '/memories'로 변경
     final response = await _apiService.post(
       '/api/memories',
       data: payload,

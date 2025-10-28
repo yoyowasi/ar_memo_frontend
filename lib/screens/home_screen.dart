@@ -1,31 +1,23 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
-
 import 'package:ar_memo_frontend/models/trip_record.dart';
-import 'package:ar_memo_frontend/providers/memory_provider.dart';
-import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
-import 'package:ar_memo_frontend/providers/upload_provider.dart';
-import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
-import 'package:ar_memo_frontend/theme/colors.dart';
-import 'package:ar_memo_frontend/theme/text_styles.dart';
-import 'package:ar_memo_frontend/utils/url_utils.dart';
 import 'package:flutter/material.dart';
+import 'package:ar_memo_frontend/utils/url_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
+import 'package:ar_memo_frontend/providers/upload_provider.dart';
+import 'package:ar_memo_frontend/providers/memory_provider.dart';
+import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
+import 'package:ar_memo_frontend/theme/colors.dart';
+import 'package:ar_memo_frontend/theme/text_styles.dart';
+import 'dart:math';
 
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:native_exif/native_exif.dart';
-
-class _ArMemoryDialogResult {
-  final bool retry;
-  final String? text;
-
-  const _ArMemoryDialogResult({required this.retry, this.text});
-}
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -579,108 +571,111 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Future<_ArMemoryDialogResult?> _promptArMemoryDialog(XFile photo) async {
-    final textController = TextEditingController();
-    try {
-      final result = await showDialog<_ArMemoryDialogResult>(
+  Future<void> _handleArRecordCreation() async {
+    final picker = ImagePicker();
+    final XFile? photo = await picker.pickImage(source: ImageSource.camera);
+
+    if (photo == null || !mounted) return;
+
+    final bool? usePhoto = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        var isProcessing = false;
+        return StatefulBuilder(
+          builder: (BuildContext _, StateSetter setState) {
+            return AlertDialog(
+              title: const Text('사진 사용'),
+              content: Image.file(File(photo.path)),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: isProcessing
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('다시 찍기'),
+                ),
+                ElevatedButton(
+                  onPressed: isProcessing
+                      ? null
+                      : () {
+                          setState(() {
+                            isProcessing = true;
+                          });
+                          Navigator.of(dialogContext).pop(true);
+                        },
+                  child: const Text('이 사진 사용'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (usePhoto == true && mounted) {
+      final textController = TextEditingController();
+      final bool? shouldSave = await showDialog<bool>(
         context: context,
-        barrierDismissible: false,
         builder: (dialogContext) {
-          return AlertDialog(
-            title: const Text('AR 메모 저장'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: AspectRatio(
-                      aspectRatio: 3 / 4,
-                      child: Image.file(
-                        File(photo.path),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+          var isSubmitting = false;
+          return StatefulBuilder(
+            builder: (BuildContext _, StateSetter setState) {
+              return AlertDialog(
+                title: const Text('AR 메모 저장'),
+                content: TextField(
+                  controller: textController,
+                  decoration: const InputDecoration(
+                    labelText: '메모 내용 (선택)',
+                    border: OutlineInputBorder(),
                   ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: textController,
-                    decoration: const InputDecoration(
-                      labelText: '메모 내용 (선택)',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 3,
+                  maxLines: 3,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('취소'),
+                  ),
+                  ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () {
+                            setState(() {
+                              isSubmitting = true;
+                            });
+                            Navigator.of(dialogContext).pop(true);
+                          },
+                    child: const Text('저장'),
                   ),
                 ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(null),
-                child: const Text('취소'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext)
-                    .pop(const _ArMemoryDialogResult(retry: true)),
-                child: const Text('다시 찍기'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.of(dialogContext).pop(
-                  _ArMemoryDialogResult(
-                    retry: false,
-                    text: textController.text.trim(),
-                  ),
-                ),
-                child: const Text('저장'),
-              ),
-            ],
+              );
+            },
           );
         },
       );
-      return result;
-    } finally {
+
+      final memoryText = textController.text.trim();
       textController.dispose();
-    }
-  }
 
-  Future<void> _handleArRecordCreation() async {
-    if (!mounted) return;
-
-    final picker = ImagePicker();
-
-    while (mounted) {
-      final XFile? photo = await picker.pickImage(source: ImageSource.camera);
-      if (photo == null || !mounted) {
+      if (shouldSave != true) {
         return;
       }
 
-      final dialogResult = await _promptArMemoryDialog(photo);
       if (!mounted) {
         return;
       }
-      if (dialogResult == null) {
-        return;
-      }
-      if (dialogResult.retry) {
-        continue;
-      }
 
-      final rawText = dialogResult.text;
-      final memoryText =
-          (rawText != null && rawText.isNotEmpty) ? rawText : null;
-
-      BuildContext? progressDialogContext;
+      final rootNavigator = Navigator.of(context, rootNavigator: true);
+      var progressShown = false;
       void showProgressDialog() {
-        if (progressDialogContext != null) return;
-        showDialog<void>(
+        if (progressShown) return;
+        progressShown = true;
+        unawaited(showDialog<void>(
           context: context,
           barrierDismissible: false,
-          builder: (dialogContext) {
-            progressDialogContext = dialogContext;
-            return const Center(child: CircularProgressIndicator());
-          },
-        );
+          useRootNavigator: true,
+          builder: (_) => const Center(child: CircularProgressIndicator()),
+        ));
       }
 
       showProgressDialog();
@@ -706,7 +701,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         await ref.read(memoryCreatorProvider.notifier).createMemory(
               latitude: position.latitude,
               longitude: position.longitude,
-              text: memoryText,
+              text: memoryText.isEmpty ? null : memoryText,
               photoUrl: uploadResult.url,
             );
         creationSucceeded = true;
@@ -714,9 +709,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         failureReason = e;
         debugPrint('AR 메모 저장 실패: $e\n$stackTrace');
       } finally {
-        if (progressDialogContext != null) {
-          Navigator.of(progressDialogContext!).pop();
-          progressDialogContext = null;
+        if (progressShown && rootNavigator.mounted) {
+          if (rootNavigator.canPop()) {
+            rootNavigator.pop();
+          }
+          progressShown = false;
         }
       }
 
@@ -733,8 +730,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           SnackBar(content: Text('AR 메모 저장에 실패했습니다: $failureReason')),
         );
       }
-
-      return;
     }
   }
 
