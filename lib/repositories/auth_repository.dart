@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:ar_memo_frontend/services/api_service.dart';
 
 class AuthRepository {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  AuthRepository(this._apiService);
 
   // 로그인 상태 (토큰 유무로 판단)
   bool get isLoggedIn => _apiService.hasToken();
@@ -71,5 +73,23 @@ class AuthRepository {
 
   Future<void> logout() async {
     await _apiService.clearToken();
+  }
+
+  Future<bool> verifyToken() async {
+    if (!isLoggedIn) return false;
+    try {
+      final response = await _apiService.get('/auth/me');
+      if (response.statusCode == 200) {
+        return true;
+      } else if (response.statusCode == 401) {
+        await logout();
+        return false;
+      }
+      return false; // Other errors
+    } catch (e) {
+      // Network error or other exceptions
+      await logout(); // Assume token is invalid if API call fails
+      return false;
+    }
   }
 }

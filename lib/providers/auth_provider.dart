@@ -3,12 +3,14 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/repositories/auth_repository.dart';
 import 'package:ar_memo_frontend/providers/user_provider.dart';
+import 'package:ar_memo_frontend/providers/api_service_provider.dart';
 
 part 'auth_provider.g.dart';
 
 @Riverpod(keepAlive: true)
 AuthRepository authRepository(Ref ref) {
-  return AuthRepository();
+  final apiService = ref.watch(apiServiceProvider);
+  return AuthRepository(apiService);
 }
 
 // Use AsyncNotifier for async initialization
@@ -16,10 +18,19 @@ AuthRepository authRepository(Ref ref) {
 class AuthState extends _$AuthState {
   @override
   Future<bool> build() async {
-    // The build method now returns a Future
     final authRepository = ref.watch(authRepositoryProvider);
-    await authRepository.init();
-    return authRepository.isLoggedIn;
+    await authRepository.init(); // Load token from SharedPreferences
+
+    if (authRepository.isLoggedIn) {
+      // If a token exists, verify its validity with the server
+      final isValid = await authRepository.verifyToken();
+      if (!isValid) {
+        // If token is invalid, ensure logout state
+        await authRepository.logout();
+      }
+      return isValid;
+    }
+    return false; // No token found
   }
 
   Future<void> login(String email, String password) async {

@@ -1,12 +1,12 @@
 // lib/models/trip_record.dart
-import 'dart:convert';
 import 'package:flutter/material.dart';
 
-/// 그룹 참조(응답에서 populate된 경우)
+/// 그룹 객체(백엔드 populate 대응)
 class GroupRef {
   final String id;
   final String name;
-  final String? color; // "#RRGGBB" 형태 가정
+  /// "#RRGGBB" 또는 "#AARRGGBB" 형태 가정(없을 수 있음)
+  final String? color;
 
   const GroupRef({
     required this.id,
@@ -15,7 +15,6 @@ class GroupRef {
   });
 
   factory GroupRef.fromJson(Map<String, dynamic> json) {
-    // id or _id 지원
     final rawId = (json['id'] ?? json['_id'])?.toString() ?? '';
     return GroupRef(
       id: rawId,
@@ -31,16 +30,11 @@ class GroupRef {
   };
 }
 
-/// TripRecord 모델
 class TripRecord {
   final String id;
   final String userId;
 
-  /// 백엔드에서 populate되면 groupId가 객체가 되어 들어올 수 있음
-  /// - 이 모델에서는 내부적으로
-  ///   - groupIdString : 문자열 형태의 groupId
-  ///   - group         : populate된 그룹 객체
-  /// 를 함께 보유합니다.
+  /// 백엔드에서 groupId가 문자열이거나, populate되어 객체로 올 수 있어 둘 다 지원
   final String? groupIdString;
   final GroupRef? group;
 
@@ -70,144 +64,109 @@ class TripRecord {
     required this.updatedAt,
   });
 
+  /// HomeScreen 호환용: record.groupColor
+  Color get groupColor {
+    final hex = group?.color;
+    if (hex == null || hex.isEmpty) return Colors.blueAccent;
+    return _hexToColorOrNull(hex) ?? Colors.blueAccent;
+  }
+
   /// JSON → TripRecord
   factory TripRecord.fromJson(Map<String, dynamic> json) {
-    // id or _id 지원
-    final rawId = (json['id'] ?? json['_id'])?.toString() ?? '';
-    final userId = json['userId']?.toString() ?? '';
+    // id
+    final id = (json['id'] ?? json['_id'])?.toString() ?? '';
 
-    // groupId가 문자열 또는 객체(populate)일 수 있음
-    String? groupIdString;
-    GroupRef? group;
+    // userId
+    final userId = (json['userId'] ?? json['user'])?.toString() ?? '';
 
-    final groupIdRaw = json['groupId'];
-    if (groupIdRaw is String) {
-      groupIdString = groupIdRaw;
-    } else if (groupIdRaw is Map<String, dynamic>) {
-      group = GroupRef.fromJson(groupIdRaw);
-      groupIdString = (groupIdRaw['id'] ?? groupIdRaw['_id'])?.toString();
-    } else if (groupIdRaw != null) {
-      // 예외적인 형태 방어
-      groupIdString = groupIdRaw.toString();
+    // group / groupId (문자열 or 객체 모두 대응)
+    GroupRef? groupObj;
+    String? groupIdStr;
+
+    dynamic groupRaw = json['groupId'] ?? json['group'];
+    if (groupRaw is Map) {
+      groupObj = GroupRef.fromJson(Map<String, dynamic>.from(groupRaw));
+      groupIdStr = groupObj.id;
+    } else if (groupRaw != null) {
+      groupIdStr = groupRaw.toString();
     }
 
+    // 기본 필드
     final title = json['title']?.toString() ?? '';
     final content = json['content']?.toString() ?? '';
 
-    final dateStr = json['date']?.toString();
-    final date = dateStr != null ? DateTime.parse(dateStr) : DateTime.now();
-
-    // photoUrls: array of string
-    final List<String> photos = [];
-    final rawPhotos = json['photoUrls'];
-    if (rawPhotos is List) {
-      for (final p in rawPhotos) {
-        if (p != null) photos.add(p.toString());
-      }
+    // 날짜 필드
+    DateTime _parseDate(dynamic v) {
+      if (v is DateTime) return v;
+      if (v is int) return DateTime.fromMillisecondsSinceEpoch(v);
+      return DateTime.tryParse(v?.toString() ?? '') ?? DateTime.now();
     }
 
-    // 위/경도 (선택)
-    double? lat;
-    double? lng;
-    final latRaw = json['latitude'];
-    final lngRaw = json['longitude'];
-    if (latRaw != null) {
-      lat = (latRaw is num) ? latRaw.toDouble() : double.tryParse(latRaw.toString());
-    }
-    if (lngRaw != null) {
-      lng = (lngRaw is num) ? lngRaw.toDouble() : double.tryParse(lngRaw.toString());
+    final date = _parseDate(json['date']);
+    final createdAt = _parseDate(json['createdAt']);
+    final updatedAt = _parseDate(json['updatedAt']);
+
+    // 사진 URL 배열
+    final List<String> photoUrls = (json['photoUrls'] as List?)
+        ?.map((e) => e?.toString() ?? '')
+        .where((e) => e.isNotEmpty)
+        .toList() ??
+        const [];
+
+    // 좌표
+    double? _toDouble(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString());
     }
 
-    final createdAtStr = json['createdAt']?.toString();
-    final updatedAtStr = json['updatedAt']?.toString();
-    final createdAt = createdAtStr != null ? DateTime.parse(createdAtStr) : DateTime.now();
-    final updatedAt = updatedAtStr != null ? DateTime.parse(updatedAtStr) : DateTime.now();
+    final latitude = _toDouble(json['latitude']);
+    final longitude = _toDouble(json['longitude']);
 
     return TripRecord(
-      id: rawId,
+      id: id,
       userId: userId,
-      groupIdString: groupIdString,
-      group: group,
+      groupIdString: groupIdStr,
+      group: groupObj,
       title: title,
       content: content,
       date: date,
-      photoUrls: photos,
-      latitude: lat,
-      longitude: lng,
+      photoUrls: photoUrls,
+      latitude: latitude,
+      longitude: longitude,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
   }
 
-  /// TripRecord → JSON (서버 전송용)
-  /// - 서버는 보통 `groupId`(문자열)만 받으므로, 우선순위: group?.id → groupIdString
+  /// TripRecord → JSON
   Map<String, dynamic> toJson() => {
     'id': id,
     'userId': userId,
-    'groupId': group?.id ?? groupIdString,
+    // 백엔드에 따라 'groupId' 또는 'group' 키를 사용할 수 있음
+    if (group != null) 'group': group!.toJson() else 'groupId': groupIdString,
     'title': title,
     'content': content,
-    'date': date.toUtc().toIso8601String(),
+    'date': date.toIso8601String(),
     'photoUrls': photoUrls,
     if (latitude != null) 'latitude': latitude,
     if (longitude != null) 'longitude': longitude,
-    'createdAt': createdAt.toUtc().toIso8601String(),
-    'updatedAt': updatedAt.toUtc().toIso8601String(),
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
   };
 
-  TripRecord copyWith({
-    String? id,
-    String? userId,
-    String? groupIdString,
-    GroupRef? group,
-    String? title,
-    String? content,
-    DateTime? date,
-    List<String>? photoUrls,
-    double? latitude,
-    double? longitude,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return TripRecord(
-      id: id ?? this.id,
-      userId: userId ?? this.userId,
-      groupIdString: groupIdString ?? this.groupIdString,
-      group: group ?? this.group,
-      title: title ?? this.title,
-      content: content ?? this.content,
-      date: date ?? this.date,
-      photoUrls: photoUrls ?? this.photoUrls,
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
-  }
-}
-
-/// UI 편의를 위한 확장: groupColor
-extension TripRecordColorExtension on TripRecord {
-  /// 그룹 색상(hex → Color). 없으면 기본 색상 반환.
-  Color get groupColor {
-    final hex = group?.color;
-    if (hex == null || hex.isEmpty) {
-      return Colors.blueAccent;
+  // 헬퍼: "#RRGGBB" / "#AARRGGBB" → Color
+  static Color? _hexToColorOrNull(String hex) {
+    var value = hex.trim();
+    if (!value.startsWith('#')) return null;
+    value = value.substring(1);
+    if (value.length == 6) {
+      // RRGGBB → AARRGGBB
+      value = 'FF$value';
     }
-    final parsed = _parseHexColor(hex);
-    return parsed ?? Colors.blueAccent;
+    if (value.length != 8) return null;
+    final intColor = int.tryParse(value, radix: 16);
+    if (intColor == null) return null;
+    return Color(intColor);
   }
-}
-
-/// "#RRGGBB" 또는 "RRGGBB" 형태를 Color로 변환
-Color? _parseHexColor(String input) {
-  var hex = input.trim();
-  if (hex.startsWith('#')) hex = hex.substring(1);
-  if (hex.length == 6) {
-    hex = 'FF$hex'; // 불투명도 추가
-  }
-  if (hex.length != 8) return null;
-  final intVal = int.tryParse(hex, radix: 16);
-  if (intVal == null) return null;
-  return Color(intVal);
 }

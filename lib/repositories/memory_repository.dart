@@ -5,7 +5,9 @@ import 'package:ar_memo_frontend/services/api_service.dart';
 
 /// Memory 데이터와 관련된 API 통신을 담당하는 클래스
 class MemoryRepository {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  MemoryRepository(this._apiService);
 
   /// API 응답에서 실제 데이터 목록을 추출하는 private 헬퍼 메서드
   List<dynamic> _unwrapList(dynamic data) {

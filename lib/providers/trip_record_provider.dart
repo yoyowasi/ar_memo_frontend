@@ -2,13 +2,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:ar_memo_frontend/models/trip_record.dart';
+import 'package:ar_memo_frontend/providers/api_service_provider.dart';
 import 'package:ar_memo_frontend/repositories/trip_record_repository.dart';
 
 part 'trip_record_provider.g.dart';
 
 @riverpod
 TripRecordRepository tripRecordRepository(Ref ref) {
-  return TripRecordRepository();
+  final apiService = ref.watch(apiServiceProvider);
+  return TripRecordRepository(apiService);
 }
 
 @riverpod
