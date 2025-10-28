@@ -24,9 +24,9 @@ class GroupRef {
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
+    '_id': id,
     'name': name,
-    if (color != null) 'color': color,
+    'color': color,
   };
 }
 
@@ -43,26 +43,54 @@ class TripRecord {
   final DateTime date;
   final List<String> photoUrls;
 
+  /// 좌표 (신규 스키마)
   final double? latitude;
   final double? longitude;
 
-  final DateTime createdAt;
-  final DateTime updatedAt;
+  /// 구형 데이터 호환용 (location.coordinates = [lng, lat])
+  final _GeoPoint? _location;
 
-  const TripRecord({
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  TripRecord({
     required this.id,
     required this.userId,
-    this.groupIdString,
-    this.group,
     required this.title,
     required this.content,
     required this.date,
     required this.photoUrls,
     this.latitude,
     this.longitude,
-    required this.createdAt,
-    required this.updatedAt,
-  });
+    String? groupIdRaw,
+    GroupSummary? groupPopulated,
+    _GeoPoint? location,
+    this.createdAt,
+    this.updatedAt,
+  })  : groupIdRaw = groupIdRaw,
+        _group = groupPopulated,
+        _location = location;
+
+  /// UI 코드 호환용: record.group 로 접근 가능
+  GroupSummary? get group => _group;
+
+  /// UI 코드 호환용: record.groupColor 로 접근 가능
+  Color? get groupColor {
+    final hex = _group?.color;
+    if (hex == null || hex.isEmpty) return null;
+    return _hexToColorOrNull(hex);
+  }
+
+  /// 좌표 최종 결정 (latitude/longitude 우선, 없으면 location.coordinates 폴백)
+  double? get lat {
+    if (latitude != null) return latitude;
+    return _location?.lat;
+  }
+
+  double? get lng {
+    if (longitude != null) return longitude;
+    return _location?.lng;
+  }
 
   /// HomeScreen 호환용: record.groupColor
   Color get groupColor {
@@ -71,8 +99,16 @@ class TripRecord {
     return _hexToColorOrNull(hex) ?? Colors.blueAccent;
   }
 
-  /// JSON → TripRecord
+  /// JSON 파싱
   factory TripRecord.fromJson(Map<String, dynamic> json) {
+    // photoUrls: string 배열로 정규화
+    final photos = <String>[];
+    final rawPhotos = json['photoUrls'];
+    if (rawPhotos is List) {
+      for (final e in rawPhotos) {
+        if (e != null) photos.add(e.toString());
+      }
+    }
     // id
     final id = (json['id'] ?? json['_id'])?.toString() ?? '';
 
@@ -141,7 +177,7 @@ class TripRecord {
 
   /// TripRecord → JSON
   Map<String, dynamic> toJson() => {
-    'id': id,
+    '_id': id,
     'userId': userId,
     // 백엔드에 따라 'groupId' 또는 'group' 키를 사용할 수 있음
     if (group != null) 'group': group!.toJson() else 'groupId': groupIdString,
@@ -154,6 +190,14 @@ class TripRecord {
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
   };
+}
+
+/// 구형 GeoJSON 폴백
+class _GeoPoint {
+  final double lat;
+  final double lng;
+
+  _GeoPoint({required this.lat, required this.lng});
 
   // 헬퍼: "#RRGGBB" / "#AARRGGBB" → Color
   static Color? _hexToColorOrNull(String hex) {
