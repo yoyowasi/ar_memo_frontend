@@ -285,7 +285,6 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
   @override
   void dispose() {
     _arSessionManager?.dispose();
-    _arObjectManager?.dispose();
     super.dispose();
   }
 }
