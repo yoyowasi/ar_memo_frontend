@@ -1,3 +1,4 @@
+import 'package:ar_memo_frontend/providers/api_service_provider.dart';
 import 'package:ar_memo_frontend/screens/splash_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:flutter/material.dart';
@@ -15,9 +16,14 @@ void main() async {
 
   KakaoMapSdk.instance.initialize('a04b18bad57c4a8b33e9eccada1f9748');
 
+  final apiService = await createApiService();
+
   runApp(
-    const ProviderScope(
-      child: MyApp(),
+    ProviderScope(
+      overrides: [
+        apiServiceProvider.overrideWithValue(apiService),
+      ],
+      child: const MyApp(),
     ),
   );
 }

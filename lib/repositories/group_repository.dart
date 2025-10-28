@@ -23,7 +23,7 @@ class GroupRepository {
   }
 
   Future<List<Group>> getMyGroups() async {
-    final response = await _apiService.get('/groups');
+    final response = await _apiService.get('/api/groups');
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
       final items = _unwrapList(decoded);
@@ -36,7 +36,7 @@ class GroupRepository {
   }
 
   Future<Group> getGroupDetail(String id) async {
-    final response = await _apiService.get('/groups/$id');
+    final response = await _apiService.get('/api/groups/$id');
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) {
@@ -54,7 +54,7 @@ class GroupRepository {
     String? colorHex,
   }) async {
     final response = await _apiService.post(
-      '/groups',
+      '/api/groups',
       data: {
         'name': name,
         if (colorHex != null && colorHex.isNotEmpty) 'color': colorHex,
@@ -75,7 +75,7 @@ class GroupRepository {
     String? colorHex,
   }) async {
     final response = await _apiService.put(
-      '/groups/$id',
+      '/api/groups/$id',
       data: {
         if (name != null) 'name': name,
         if (colorHex != null) 'color': colorHex,
@@ -94,7 +94,7 @@ class GroupRepository {
   }
 
   Future<void> deleteGroup(String id) async {
-    final response = await _apiService.delete('/groups/$id');
+    final response = await _apiService.delete('/api/groups/$id');
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception('Failed to delete group: ${response.body}');
     }
@@ -102,7 +102,7 @@ class GroupRepository {
 
   Future<List<Memory>> getGroupMemories(String id, {int page = 1, int limit = 20}) async {
     final response = await _apiService.get(
-      '/groups/$id/memories',
+      '/api/groups/$id/memories',
       queryParameters: {
         'page': page,
         'limit': limit,
@@ -121,7 +121,7 @@ class GroupRepository {
 
   Future<Group> addMember({required String groupId, required String userId}) async {
     final response = await _apiService.post(
-      '/groups/$groupId/members',
+      '/api/groups/$groupId/members',
       data: {'userId': userId},
     );
     if (response.statusCode == 200) {
@@ -137,7 +137,7 @@ class GroupRepository {
   }
 
   Future<Group> removeMember({required String groupId, required String userId}) async {
-    final response = await _apiService.delete('/groups/$groupId/members/$userId');
+    final response = await _apiService.delete('/api/groups/$groupId/members/$userId');
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) {
