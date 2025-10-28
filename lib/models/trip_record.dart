@@ -1,5 +1,4 @@
 // lib/models/trip_record.dart
-import 'dart:convert';
 import 'package:flutter/material.dart';
 
 /// 그룹 참조(응답에서 populate된 경우)

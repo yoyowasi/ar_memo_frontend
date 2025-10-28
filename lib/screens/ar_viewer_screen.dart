@@ -3,6 +3,12 @@ import 'dart:async';
 import 'package:ar_flutter_plugin/ar_flutter_plugin.dart';
 import 'package:ar_flutter_plugin/datatypes/config_planedetection.dart';
 import 'package:ar_flutter_plugin/datatypes/node_types.dart';
+import 'package:ar_flutter_plugin/managers/ar_anchor_manager.dart';
+import 'package:ar_flutter_plugin/managers/ar_location_manager.dart';
+import 'package:ar_flutter_plugin/managers/ar_object_manager.dart';
+import 'package:ar_flutter_plugin/managers/ar_session_manager.dart';
+import 'package:ar_flutter_plugin/models/ar_anchor.dart';
+import 'package:ar_flutter_plugin/models/ar_node.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -24,11 +30,8 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
   ARSessionManager? _arSessionManager;
   ARObjectManager? _arObjectManager;
   ARAnchorManager? _arAnchorManager;
-  ARLocationManager? _arLocationManager;
 
   final Map<String, ARAnchor> _loadedAnchors = {};
-  ProviderSubscription<AsyncValue<List<Memory>>>? _memoriesSubscription;
-
   final double _nearbyRadiusMeters = 150;
   Position? _currentPosition;
   List<Memory> _latestMemories = [];
@@ -37,16 +40,23 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
   @override
   void initState() {
     super.initState();
-    _memoriesSubscription = ref.listen<AsyncValue<List<Memory>>>(
+    ref.listen<AsyncValue<List<Memory>>>(
       myMemoriesProvider,
       (_, next) => next.whenOrNull(
         data: (memories) {
           _latestMemories = memories;
           _refreshNearbyMemories();
-          _syncAnchorsWithMemories();
+          unawaited(_syncAnchorsWithMemories());
         },
       ),
     );
+
+    ref.read(myMemoriesProvider).whenOrNull(
+          data: (memories) {
+            _latestMemories = memories;
+            _refreshNearbyMemories();
+          },
+        );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _ensureLocationReady();
@@ -144,7 +154,6 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
     _arSessionManager = arSessionManager;
     _arObjectManager = arObjectManager;
     _arAnchorManager = arAnchorManager;
-    _arLocationManager = arLocationManager;
 
     await _arSessionManager?.onInitialize(
       showFeaturePoints: false,
@@ -154,7 +163,7 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
     );
     await _arObjectManager?.onInitialize();
 
-    _arSessionManager?.onPlaneOrPointTapped = (hits) async {
+    _arSessionManager?.onPlaneOrPointTap = (hits) async {
       if (hits.isEmpty) return;
       final hit = hits.first;
       final anchor = ARPlaneAnchor(transformation: hit.worldTransform);
@@ -275,11 +284,8 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
 
   @override
   void dispose() {
-    _memoriesSubscription?.close();
     _arSessionManager?.dispose();
     _arObjectManager?.dispose();
-    _arAnchorManager?.dispose();
-    _arLocationManager?.dispose();
     super.dispose();
   }
 }
