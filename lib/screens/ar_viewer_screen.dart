@@ -129,12 +129,12 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
         _placedContents.remove(placementId);
       }
 
-      ARAnchor? anchor;
+      ARPlaneAnchor? anchor;
       ARNode? node;
 
-      if (shouldUseAnchor && anchorManager != null) {
+      if (shouldUseAnchor) {
         anchor = ARPlaneAnchor(transformation: transform!);
-        final didAddAnchor = await anchorManager.addAnchor(anchor);
+        final didAddAnchor = await anchorManager!.addAnchor(anchor);
         if (didAddAnchor != true) {
           continue;
         }
@@ -146,7 +146,7 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
         );
         final didAddNode = await objectManager.addNode(node, planeAnchor: anchor);
         if (didAddNode != true) {
-          await anchorManager.removeAnchor(anchor);
+          await anchorManager!.removeAnchor(anchor);
           continue;
         }
       } else if (fallbackPlacement != null) {
@@ -434,7 +434,7 @@ class _PlacedContent {
     this.fallbackRotation,
   });
 
-  final ARAnchor? anchor;
+  final ARPlaneAnchor? anchor;
   final ARNode node;
   final bool usesAnchor;
   final vector.Vector3? fallbackPosition;
