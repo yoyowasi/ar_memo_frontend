@@ -6,7 +6,7 @@ import 'package:ar_memo_frontend/providers/group_provider.dart';
 import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
-import 'package:ar_memo_frontend/screens/main_screen.dart'; // For tab provider
+
 
 class GroupDetailScreen extends ConsumerWidget {
   final String groupId;

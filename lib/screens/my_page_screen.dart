@@ -124,13 +124,10 @@ class MyPageScreen extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(currentUserProvider);
-          ref.invalidate(myGroupsProvider);
-          ref.invalidate(memorySummaryProvider);
           await Future.wait([
-            ref.read(currentUserProvider.future),
-            ref.read(myGroupsProvider.future),
-            ref.read(memorySummaryProvider.future),
+            ref.refresh(currentUserProvider.future),
+            ref.refresh(myGroupsProvider.future),
+            ref.refresh(memorySummaryProvider.future),
           ]);
         },
         child: ListView(

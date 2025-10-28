@@ -1,46 +1,33 @@
 import 'dart:convert';
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  ApiService._internal()
-      : _client = http.Client(),
-        _baseUrl = _normalizeBaseUrl(dotenv.env['API_BASE_URL']);
-
-  static final ApiService _instance = ApiService._internal();
-  factory ApiService() => _instance;
-
   final http.Client _client;
   final String _baseUrl;
+  final SharedPreferences _sharedPreferences;
   String? _token;
 
-  static String _normalizeBaseUrl(String? raw) {
-    if (raw == null || raw.isEmpty) {
-      throw StateError('API_BASE_URL이 .env 파일에 정의되어 있지 않습니다.');
-    }
-    return raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
-  }
-
-  Future<void> dispose() async {
-    _client.close();
-  }
+  ApiService({
+    required http.Client client,
+    required String baseUrl,
+    required SharedPreferences sharedPreferences,
+  })  : _client = client,
+        _baseUrl = baseUrl,
+        _sharedPreferences = sharedPreferences;
 
   Future<void> loadToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('jwt_token');
+    _token = _sharedPreferences.getString('jwt_token');
   }
 
   Future<void> setToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('jwt_token', token);
+    await _sharedPreferences.setString('jwt_token', token);
     _token = token;
   }
 
   Future<void> clearToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('jwt_token');
+    await _sharedPreferences.remove('jwt_token');
     _token = null;
   }
 

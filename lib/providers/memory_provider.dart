@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/models/memory.dart';
 import 'package:ar_memo_frontend/models/memory_summary.dart';
 import 'package:ar_memo_frontend/repositories/memory_repository.dart';
+import 'package:ar_memo_frontend/providers/api_service_provider.dart';
 
 part 'memory_provider.g.dart';
 
 @riverpod
 MemoryRepository memoryRepository(Ref ref) {
-  return MemoryRepository();
+  final apiService = ref.watch(apiServiceProvider);
+  return MemoryRepository(apiService);
 }
 
 @riverpod

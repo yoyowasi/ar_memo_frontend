@@ -66,7 +66,8 @@ class _CreateTripRecordScreenState
   // 이미지 선택 및 업로드
   Future<void> _pickAndUploadImage() async {
     final picker = ImagePicker();
-    final List<XFile> pickedFiles = await picker.pickMultiImage(imageQuality: 85);
+    // imageQuality를 지정하면 재인코딩되면서 EXIF(위치 정보)가 사라지므로 사용하지 않는다.
+    final List<XFile> pickedFiles = await picker.pickMultiImage();
     if (pickedFiles.isEmpty || !mounted) return;
 
     setState(() { _isUploading = true; _localFiles.addAll(pickedFiles); });
