@@ -29,6 +29,21 @@ subprojects {
             extensions.configure<LibraryExtension>("android") {
                 namespace = "de.carius.ar_flutter_plugin"
             }
+            tasks.matching { it.name == "preBuild" }.configureEach {
+                doFirst {
+                    val manifestFile = file("src/main/AndroidManifest.xml")
+                    if (manifestFile.exists()) {
+                        val original = manifestFile.readText()
+                        val cleaned = original.replace(
+                            Regex("\\s+package=\\\"io\\.carius\\.lars\\.ar_flutter_plugin\\\""),
+                            "",
+                        )
+                        if (cleaned != original) {
+                            manifestFile.writeText(cleaned)
+                        }
+                    }
+                }
+            }
         }
     }
 }
