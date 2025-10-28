@@ -98,99 +98,102 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
       return;
     }
 
-    try {
-      final idsToKeep = <String>{};
-      for (final memory in _nearbyMemories) {
-        final placementId = 'memory_${memory.id}';
-        idsToKeep.add(placementId);
+      try {
+        final idsToKeep = <String>{};
+        for (final memory in _nearbyMemories) {
+          final placementId = 'memory_${memory.id}';
+          idsToKeep.add(placementId);
 
-      final transform = memory.anchorTransform;
-      final shouldUseAnchor = transform != null && anchorManager != null;
-      final fallbackPlacement = shouldUseAnchor ? null : _buildFallbackPlacement(memory);
-      if (!shouldUseAnchor && fallbackPlacement == null) {
-        continue;
+          final transform = memory.anchorTransform;
+          final shouldUseAnchor = transform != null && anchorManager != null;
+          final fallbackPlacement =
+              shouldUseAnchor ? null : _buildFallbackPlacement(memory);
+          if (!shouldUseAnchor && fallbackPlacement == null) {
+            continue;
+          }
+
+          final existing = _placedContents[placementId];
+          if (existing != null) {
+            if (shouldUseAnchor && existing.usesAnchor) {
+              continue;
+            }
+            if (!shouldUseAnchor &&
+                !existing.usesAnchor &&
+                fallbackPlacement != null &&
+                _isSameFallback(existing, fallbackPlacement)) {
+              continue;
+            }
+
+            await objectManager.removeNode(existing.node);
+            if (existing.anchor != null && anchorManager != null) {
+              await anchorManager.removeAnchor(existing.anchor!);
+            }
+            _placedContents.remove(placementId);
+          }
+
+          ARPlaneAnchor? anchor;
+          ARNode? node;
+
+          if (shouldUseAnchor && transform != null && anchorManager != null) {
+            anchor = ARPlaneAnchor(transformation: transform);
+            final didAddAnchor = await anchorManager.addAnchor(anchor);
+            if (didAddAnchor != true) {
+              continue;
+            }
+
+            node = ARNode(
+              type: NodeType.localGLTF2,
+              uri: 'Models/frame.glb',
+              scale: vector.Vector3.all(0.2),
+            );
+            final didAddNode =
+                await objectManager.addNode(node, planeAnchor: anchor);
+            if (didAddNode != true) {
+              await anchorManager.removeAnchor(anchor);
+              continue;
+            }
+          } else if (fallbackPlacement != null) {
+            node = ARNode(
+              type: NodeType.localGLTF2,
+              uri: 'Models/frame.glb',
+              scale: vector.Vector3.all(0.2),
+              position: fallbackPlacement.position,
+              rotation: fallbackPlacement.rotation,
+            );
+
+            final didAddNode = await objectManager.addNode(node);
+            if (didAddNode != true) {
+              continue;
+            }
+          }
+
+          if (node == null) {
+            continue;
+          }
+          _placedContents[placementId] = _PlacedContent(
+            anchor: anchor,
+            node: node,
+            usesAnchor: shouldUseAnchor,
+            fallbackPosition: fallbackPlacement?.position,
+            fallbackRotation: fallbackPlacement?.rotation,
+          );
+        }
+
+        final idsToRemove = _placedContents.keys
+            .where((id) => !idsToKeep.contains(id))
+            .toList(growable: false);
+        for (final id in idsToRemove) {
+          final content = _placedContents.remove(id);
+          if (content == null) continue;
+
+          await objectManager.removeNode(content.node);
+          if (content.anchor != null && anchorManager != null) {
+            await anchorManager.removeAnchor(content.anchor!);
+          }
+        }
+      } finally {
+        _isSyncingAnchors = false;
       }
-
-      final existing = _placedContents[placementId];
-      if (existing != null) {
-        if (shouldUseAnchor && existing.usesAnchor) {
-          continue;
-        }
-        if (!shouldUseAnchor && !existing.usesAnchor &&
-            fallbackPlacement != null &&
-            _isSameFallback(existing, fallbackPlacement)) {
-          continue;
-        }
-
-        await objectManager.removeNode(existing.node);
-        if (existing.anchor != null && anchorManager != null) {
-          await anchorManager.removeAnchor(existing.anchor!);
-        }
-        _placedContents.remove(placementId);
-      }
-
-      ARPlaneAnchor? anchor;
-      ARNode? node;
-
-      if (shouldUseAnchor) {
-        anchor = ARPlaneAnchor(transformation: transform!);
-        final didAddAnchor = await anchorManager!.addAnchor(anchor);
-        if (didAddAnchor != true) {
-          continue;
-        }
-
-        node = ARNode(
-          type: NodeType.localGLTF2,
-          uri: 'Models/frame.glb',
-          scale: vector.Vector3.all(0.2),
-        );
-        final didAddNode = await objectManager.addNode(node, planeAnchor: anchor);
-        if (didAddNode != true) {
-          await anchorManager!.removeAnchor(anchor);
-          continue;
-        }
-      } else if (fallbackPlacement != null) {
-        node = ARNode(
-          type: NodeType.localGLTF2,
-          uri: 'Models/frame.glb',
-          scale: vector.Vector3.all(0.2),
-          position: fallbackPlacement.position,
-          rotation: fallbackPlacement.rotation,
-        );
-
-        final didAddNode = await objectManager.addNode(node);
-        if (didAddNode != true) {
-          continue;
-        }
-      }
-
-      if (node == null) {
-        continue;
-      }
-      _placedContents[placementId] = _PlacedContent(
-        anchor: anchor,
-        node: node,
-        usesAnchor: shouldUseAnchor,
-        fallbackPosition: fallbackPlacement?.position,
-        fallbackRotation: fallbackPlacement?.rotation,
-      );
-    }
-
-      final idsToRemove = _placedContents.keys
-          .where((id) => !idsToKeep.contains(id))
-          .toList(growable: false);
-      for (final id in idsToRemove) {
-        final content = _placedContents.remove(id);
-        if (content == null) continue;
-
-        await objectManager.removeNode(content.node);
-        if (content.anchor != null && anchorManager != null) {
-          await anchorManager.removeAnchor(content.anchor!);
-        }
-      }
-    } finally {
-      _isSyncingAnchors = false;
-    }
   }
 
   void _refreshNearbyMemories() {
