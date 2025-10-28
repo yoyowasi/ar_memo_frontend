@@ -29,7 +29,7 @@ dependencies:
   vector_math: ^2.1.4
   intl: ^0.19.0
   geolocator: ^11.1.0
-  ar_flutter_plugin: ^0.7.5 # 공식 배포본 중 Dart 3 호환 버전
+  ar_flutter_plugin: ^0.7.3 # pub.dev 최신 안정 버전
 
 dev_dependencies:
   flutter_test:
