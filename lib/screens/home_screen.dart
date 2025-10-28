@@ -8,7 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
-import 'package:ar_memo_frontend/screens/create_trip_record_screen.dart';
+import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
@@ -572,6 +572,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
+      late Position position;
+      late String photoUrl;
+
       try {
         LocationPermission permission = await Geolocator.checkPermission();
         if (permission == LocationPermission.denied) {
@@ -581,29 +584,84 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             throw Exception('위치 정보 권한이 거부되었습니다.');
           }
         }
-        final position = await Geolocator.getCurrentPosition();
+
+        position = await Geolocator.getCurrentPosition();
 
         final repository = ref.read(uploadRepositoryProvider);
         final result = await repository.uploadPhoto(photo);
-        final newUrl = result.url;
-
-        if (!mounted) return;
-        Navigator.of(context).pop();
-
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => CreateTripRecordScreen(
-              initialPhotoUrls: [newUrl],
-              initialLatitude: position.latitude,
-              initialLongitude: position.longitude,
-            ),
-          ),
-        );
+        photoUrl = result.url;
       } catch (e) {
         if (!mounted) return;
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('오류: $e')),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      final textController = TextEditingController();
+      final bool? shouldSave = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('AR 메모 저장'),
+            content: TextField(
+              controller: textController,
+              decoration: const InputDecoration(
+                labelText: '메모 내용 (선택)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('취소'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('저장'),
+              ),
+            ],
+          );
+        },
+      );
+
+      final memoryText = textController.text.trim();
+      textController.dispose();
+
+      if (shouldSave != true || !mounted) {
+        return;
+      }
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      try {
+        await ref.read(memoryCreatorProvider.notifier).createMemory(
+              latitude: position.latitude,
+              longitude: position.longitude,
+              text: memoryText.isEmpty ? null : memoryText,
+              photoUrl: photoUrl,
+            );
+
+        if (!mounted) return;
+        Navigator.of(context).pop();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('새로운 AR 메모가 저장되었습니다.')),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('AR 메모 저장에 실패했습니다: $e')),
         );
       }
     }
