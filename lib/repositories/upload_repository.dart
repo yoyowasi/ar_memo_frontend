@@ -9,9 +9,9 @@ import 'package:mime/mime.dart';
 import 'package:image_picker/image_picker.dart';
 
 class UploadRepository {
-  UploadRepository({ApiService? apiService}) : _apiService = apiService ?? ApiService();
-
   final ApiService _apiService;
+
+  UploadRepository(this._apiService);
 
   Future<UploadPhotoResult> uploadPhoto(XFile file) async {
     final request = _apiService.multipartRequest('POST', '/uploads/photo');

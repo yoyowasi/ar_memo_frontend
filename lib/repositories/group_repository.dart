@@ -5,7 +5,9 @@ import 'package:ar_memo_frontend/models/memory.dart';
 import 'package:ar_memo_frontend/services/api_service.dart';
 
 class GroupRepository {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  GroupRepository(this._apiService);
 
   List<dynamic> _unwrapList(dynamic data) {
     if (data is List<dynamic>) {

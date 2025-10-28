@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:ar_memo_frontend/models/trip_record.dart';
-// exif 패키지 제거
 import 'package:flutter/material.dart';
 import 'package:ar_memo_frontend/utils/url_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,7 +16,7 @@ import 'dart:math';
 
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:native_exif/native_exif.dart'; // ✅ 교체: 네이티브 EXIF
+import 'package:native_exif/native_exif.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -34,7 +33,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final Map<String, Poi> _pois = {};
   KImage? _poiIcon;
 
-  // Photo marker cache and selection tracking
   String? _previouslySelectedMarkerId;
   final Map<String, KImage> _photoMarkerIcons = {};
   LatLng? _currentMapCenter;
@@ -58,8 +56,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _clearAllPois() async {
-    if (_mapController == null) return;
-    await Future.wait(_pois.values.map((poi) => _mapController!.labelLayer.removePoi(poi)));
+    final c = _mapController;
+    if (c == null) return;
+    await Future.wait(_pois.values.map((poi) => c.labelLayer.removePoi(poi)));
     _pois.clear();
     _markerInfoWindows.clear();
     _previouslySelectedMarkerId = null;
@@ -67,7 +66,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _loadAndSetMarkersFromProvider(List<TripRecord> records) async {
-    if (_mapController == null) return;
+    final c = _mapController;
+    if (c == null) return;
 
     await _clearAllPois();
     await _preparePoiIcon();
@@ -90,7 +90,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final markerId = record.id;
       _markerInfoWindows[markerId] = infoTitle;
 
-      final poi = await _mapController!.labelLayer.addPoi(
+      final poi = await c.labelLayer.addPoi(
         LatLng(lat, lng),
         style: style,
         id: markerId,
@@ -101,26 +101,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _pois[markerId] = poi;
     }
 
-    debugPrint("${_pois.length} pois prepared for map.");
+    debugPrint("${(_pois.length)} pois prepared for map.");
   }
 
   Future<void> _onMarkerTapped(String recordId) async {
-    if (_mapController == null) return;
+    final c = _mapController;
+    if (c == null) return;
 
     if (_previouslySelectedMarkerId != null &&
         _previouslySelectedMarkerId != recordId) {
-      final oldPoi = _pois[_previouslySelectedMarkerId!];
+      final oldPoi = _pois[_previouslySelectedMarkerId];
       if (oldPoi != null) {
-        final defaultStyle = PoiStyle(icon: _poiIcon!);
-        await _mapController?.labelLayer.removePoi(oldPoi);
-        final newPoi = await _mapController!.labelLayer.addPoi(
+        final defaultStyle = PoiStyle(icon: _poiIcon);
+        await c.labelLayer.removePoi(oldPoi);
+        final newPoi = await c.labelLayer.addPoi(
           oldPoi.position,
           style: defaultStyle,
           id: oldPoi.id,
           text: oldPoi.text,
-          onClick: () => _onMarkerTapped(oldPoi.id!),
+          onClick: () => _onMarkerTapped(oldPoi.id),
         );
-        _pois[oldPoi.id!] = newPoi;
+        _pois[oldPoi.id] = newPoi;
       }
     }
 
@@ -176,15 +177,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final poiToUpdate = _pois[recordId];
       if (poiToUpdate != null) {
         final photoStyle = PoiStyle(icon: photoIcon);
-        await _mapController?.labelLayer.removePoi(poiToUpdate);
-        final newPoi = await _mapController!.labelLayer.addPoi(
+        await c.labelLayer.removePoi(poiToUpdate);
+        final newPoi = await c.labelLayer.addPoi(
           poiToUpdate.position,
           style: photoStyle,
           id: poiToUpdate.id,
           text: poiToUpdate.text,
-          onClick: () => _onMarkerTapped(poiToUpdate.id!),
+          onClick: () => _onMarkerTapped(poiToUpdate.id),
         );
-        _pois[poiToUpdate.id!] = newPoi;
+        _pois[poiToUpdate.id] = newPoi;
       }
     }
 
@@ -195,7 +196,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _moveToCurrentUserLocation() async {
-    if (_mapController == null) return;
+    final c = _mapController;
+    if (c == null) return;
 
     try {
       LocationPermission permission = await Geolocator.checkPermission();
@@ -214,7 +216,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final position = await Geolocator.getCurrentPosition();
       final currentLatLng = LatLng(position.latitude, position.longitude);
 
-      await _mapController!.moveCamera(
+      await c.moveCamera(
         CameraUpdate.newCenterPosition(currentLatLng),
         animation: CameraAnimation(500),
       );
@@ -227,22 +229,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  // ✅ 현재 카메라 중심을 SDK에서 읽어 _currentMapCenter에 반영
   Future<void> _refreshCenter() async {
-    if (_mapController == null) return;
+    final c = _mapController;
+    if (c == null) return;
     try {
-      final cam = await _mapController!.getCameraPosition();
-      _currentMapCenter = cam.position; // kakao_map_sdk 1.2.x
-    } catch (_) {
-      // 무시
-    }
+      final cam = await c.getCameraPosition();
+      _currentMapCenter = cam.position;
+    } catch (_) {}
   }
 
-  // ✅ EXIF GPS를 네이티브로 읽기 (Android 10+는 ACCESS_MEDIA_LOCATION 권한 필요)
   Future<LatLng?> _latLngFromExifPath(String filePath) async {
     try {
       final exif = await Exif.fromPath(filePath);
-      final coords = await exif.getLatLong(); // ExifLatLong?
+      final coords = await exif.getLatLong();
       await exif.close();
       if (coords == null) return null;
       return LatLng(coords.latitude, coords.longitude);
@@ -255,7 +254,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _showCreateTripPopup(BuildContext context, WidgetRef ref) {
     final titleController = TextEditingController();
     final contentController = TextEditingController();
-    DateTime selectedDate = DateTime.now(); // non-null 유지
+    DateTime selectedDate = DateTime.now();
     XFile? localFile;
     List<String> photoUrls = [];
     bool isProcessing = false;
@@ -270,8 +269,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           builder: (builderContext, setState) {
             Future<void> pickImageAndSetLocation() async {
               final picker = ImagePicker();
-
-              // 재인코딩 금지: imageQuality 옵션 제거 (EXIF 보존)
               final XFile? pickedFile =
               await picker.pickImage(source: ImageSource.gallery);
               if (pickedFile == null || !builderContext.mounted) return;
@@ -285,40 +282,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 photoUrls.clear();
               });
 
-              // 1) ✅ 사진 EXIF에서 위도/경도 추출 (native_exif)
               LatLng? foundLocation = await _latLngFromExifPath(pickedFile.path);
               if (foundLocation != null) {
-                debugPrint('EXIF GPS found: ${foundLocation.latitude}, ${foundLocation.longitude}');
+                debugPrint(
+                    'EXIF GPS found: ${foundLocation.latitude}, ${foundLocation.longitude}');
               }
 
-              // 2) 폴백: 기기 현재 위치
               if (foundLocation == null) {
                 try {
-                  LocationPermission permission = await Geolocator.checkPermission();
+                  LocationPermission permission =
+                  await Geolocator.checkPermission();
                   if (permission == LocationPermission.denied) {
                     permission = await Geolocator.requestPermission();
                   }
                   if (permission == LocationPermission.always ||
                       permission == LocationPermission.whileInUse) {
                     final position = await Geolocator.getCurrentPosition();
-                    foundLocation = LatLng(position.latitude, position.longitude);
-                    debugPrint('Fallback to device GPS: ${position.latitude}, ${position.longitude}');
+                    foundLocation =
+                        LatLng(position.latitude, position.longitude);
+                    debugPrint(
+                        'Fallback to device GPS: ${position.latitude}, ${position.longitude}');
                   }
                 } catch (e) {
                   debugPrint('Device GPS failed: $e');
                 }
               }
 
-              // 3) 폴백: 지도 중심 (최신 중심값 보정)
               if (foundLocation == null) {
                 await _refreshCenter();
                 if (_currentMapCenter != null) {
                   foundLocation = _currentMapCenter;
-                  debugPrint('Fallback to map center: ${foundLocation!.latitude}, ${foundLocation.longitude}');
+                  debugPrint(
+                      'Fallback to map center: ${foundLocation!.latitude}, ${foundLocation.longitude}');
                 }
               }
 
-              // 4) 폴백: 서울시청
               foundLocation ??= const LatLng(37.5665, 126.9780);
 
               setState(() {
@@ -326,7 +324,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 tripLongitude = foundLocation.longitude;
               });
 
-              // 업로드
               if (builderContext.mounted) {
                 try {
                   final repository = ref.read(uploadRepositoryProvider);
@@ -334,11 +331,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   photoUrls.add(result.url);
                 } catch (e) {
                   if (builderContext.mounted) {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text('사진 업로드 실패: $e')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('사진 업로드 실패: $e')));
                   }
                 } finally {
-                  if (builderContext.mounted) setState(() => isProcessing = false);
+                  if (builderContext.mounted) {
+                    setState(() => isProcessing = false);
+                  }
                 }
               }
             }
@@ -371,7 +370,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
               setState(() => isLoading = true);
 
-              debugPrint('DEBUG: Before addTripRecord - Lat: $tripLatitude, Lng: $tripLongitude');
+              debugPrint(
+                  'DEBUG: Before addTripRecord - Lat: $tripLatitude, Lng: $tripLongitude');
 
               try {
                 await ref.read(tripRecordsProvider.notifier).addTripRecord(
@@ -384,13 +384,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 );
                 if (mounted) Navigator.pop(dialogContext);
                 if (mounted) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('일기가 저장되었습니다.')));
                 }
               } catch (e) {
                 if (dialogContext.mounted) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(SnackBar(content: Text('저장 실패: $e')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('저장 실패: $e')));
                 }
               } finally {
                 if (mounted && dialogContext.mounted) {
@@ -400,8 +400,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             }
 
             return AlertDialog(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
+              shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               titlePadding: const EdgeInsets.only(top: 24, bottom: 0),
               contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -543,8 +543,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _handleArRecordCreation() async {
     final picker = ImagePicker();
-    final XFile? photo =
-    await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+    final XFile? photo = await picker.pickImage(source: ImageSource.camera);
 
     if (photo == null || !mounted) return;
 
@@ -663,7 +662,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 _loadAndSetMarkersFromProvider(records);
               }
             },
-            // onCameraIdle 미지원 → 필요 시 버튼/제스처 후 _refreshCenter 호출로 보정
             option: const KakaoMapOption(
               position: LatLng(37.5665, 126.9780),
               zoomLevel: 14,
@@ -760,9 +758,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         children: [
                           const Text('나의 기록', style: heading2),
                           InkWell(
-                            onTap: () {
-                              /* TODO: 필터/정렬 */
-                            },
+                            onTap: () {},
                             child: const Row(
                               children: [
                                 Text('최신순', style: bodyText2),
@@ -829,7 +825,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       await _refreshCenter();
                                       _onMarkerTapped(record.id);
                                     } else {
-                                      // 위치 정보 없을 시 상세 화면만 이동
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
@@ -986,4 +981,3 @@ class Group {
   final String name;
   Group({required this.id, required this.name});
 }
-

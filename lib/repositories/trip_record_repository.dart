@@ -1,28 +1,15 @@
 // lib/repositories/trip_record_repository.dart
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:ar_memo_frontend/models/trip_record.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:ar_memo_frontend/services/api_service.dart';
 
 class TripRecordRepository {
-  TripRecordRepository();
+  final ApiService _apiService;
 
-  String get _baseUrl {
-    final base = dotenv.env['API_BASE_URL'] ?? 'http://127.0.0.1:4000/api';
-    return base.endsWith('/') ? base.substring(0, base.length - 1) : base;
-  }
+  TripRecordRepository(this._apiService);
 
-  Map<String, String> _headers({String? token}) {
-    return {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
-  }
-
-  /// 로그인 시 받은 JWT를 호출부에서 넘겨 쓰도록 필요하면 인자 추가해서 사용하세요.
-  Future<List<TripRecord>> getTripRecords({int page = 1, int limit = 20, String? token}) async {
-    final uri = Uri.parse('$_baseUrl/trip-records?page=$page&limit=$limit');
-    final res = await http.get(uri, headers: _headers(token: token));
+  Future<List<TripRecord>> getTripRecords({int page = 1, int limit = 20}) async {
+    final res = await _apiService.get('/trip-records', queryParameters: {'page': page, 'limit': limit});
     if (res.statusCode != 200) {
       throw Exception('Failed to fetch trip records: ${res.statusCode} ${res.body}');
     }
@@ -31,9 +18,8 @@ class TripRecordRepository {
     return items.map(TripRecord.fromJson).toList();
   }
 
-  Future<TripRecord> getTripRecord(String id, {String? token}) async {
-    final uri = Uri.parse('$_baseUrl/trip-records/$id');
-    final res = await http.get(uri, headers: _headers(token: token));
+  Future<TripRecord> getTripRecord(String id) async {
+    final res = await _apiService.get('/trip-records/$id');
     if (res.statusCode != 200) {
       throw Exception('Failed to fetch trip record: ${res.statusCode} ${res.body}');
     }
@@ -49,9 +35,7 @@ class TripRecordRepository {
     List<String>? photoUrls,
     double? latitude,
     double? longitude,
-    String? token,
   }) async {
-    final uri = Uri.parse('$_baseUrl/trip-records');
     final body = {
       'title': title,
       'date': date.toIso8601String(),
@@ -61,7 +45,7 @@ class TripRecordRepository {
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
     };
-    final res = await http.post(uri, headers: _headers(token: token), body: jsonEncode(body));
+    final res = await _apiService.post('/trip-records', data: body);
     if (res.statusCode != 201) {
       throw Exception('Failed to create trip record: ${res.statusCode} ${res.body}');
     }
@@ -76,9 +60,7 @@ class TripRecordRepository {
     List<String>? photoUrls,
     double? latitude,
     double? longitude,
-    String? token,
   }) async {
-    final uri = Uri.parse('$_baseUrl/trip-records/$id');
     final body = <String, dynamic>{
       if (title != null) 'title': title,
       if (date != null) 'date': date.toIso8601String(),
@@ -88,15 +70,14 @@ class TripRecordRepository {
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
     };
-    final res = await http.put(uri, headers: _headers(token: token), body: jsonEncode(body));
+    final res = await _apiService.put('/trip-records/$id', data: body);
     if (res.statusCode != 200) {
       throw Exception('Failed to update trip record: ${res.statusCode} ${res.body}');
     }
   }
 
-  Future<void> deleteTripRecord(String id, {String? token}) async {
-    final uri = Uri.parse('$_baseUrl/trip-records/$id');
-    final res = await http.delete(uri, headers: _headers(token: token));
+  Future<void> deleteTripRecord(String id) async {
+    final res = await _apiService.delete('/trip-records/$id');
     if (res.statusCode != 200) {
       throw Exception('Failed to delete trip record: ${res.statusCode} ${res.body}');
     }
