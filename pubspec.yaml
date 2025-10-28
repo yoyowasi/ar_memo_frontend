@@ -28,7 +28,7 @@ dependencies:
   image_picker: ^1.1.2
   vector_math: ^2.1.4
   intl: ^0.19.0
-  geolocator: ^11.1.0
+  geolocator: ^9.0.2
   ar_flutter_plugin: ^0.7.3 # pub.dev 최신 안정 버전
 
 dev_dependencies:
