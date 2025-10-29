@@ -16,6 +16,7 @@ dependencies:
 
   # --- 카카오맵 SDK ---
   kakao_map_sdk: ^1.1.4
+  kakao_flutter_sdk_user: ^1.9.7+3
   # -------------------------------
   native_exif: ^0.6.2
 

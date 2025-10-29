@@ -7,6 +7,7 @@ import org.gradle.kotlin.dsl.configure
 import org.jetbrains.kotlin.gradle.plugin.KotlinBasePlugin // KotlinBasePlugin import 추가
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
+
 allprojects {
     repositories {
         google()
@@ -35,10 +36,14 @@ subprojects {
     // project.evaluationDependsOn(":app") // 이 라인을 제거합니다.
 
     plugins.withId("com.android.library") {
+        val android = extensions.getByType<LibraryExtension>()
+        android.compileOptions {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
+        }
+
         if (name == "ar_flutter_plugin") {
-            extensions.configure<LibraryExtension>("android") {
-                namespace = "de.carius.ar_flutter_plugin"
-            }
+            android.namespace = "de.carius.ar_flutter_plugin"
             tasks.matching { it.name == "preBuild" }.configureEach {
                 doFirst {
                     val manifestFile = file("src/main/AndroidManifest.xml")

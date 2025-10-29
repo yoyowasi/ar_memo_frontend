@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
@@ -29,8 +30,8 @@ android {
     }
 
     // ✅ Kotlin JVM 타깃 17로 통일
-    kotlinOptions {
-        jvmTarget = "17"
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 
     defaultConfig {
@@ -53,9 +54,4 @@ android {
             )
         }
     }
-}
-
-// ✅ Kotlin Toolchain으로도 17을 강제 (추가 안전장치)
-kotlin {
-    jvmToolchain(17)
 }
