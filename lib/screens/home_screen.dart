@@ -1104,13 +1104,15 @@ class _TripRecordSlideCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      record.content.isNotEmpty ? record.content : '내용이 없습니다.',
-                      style: bodyText2.copyWith(height: 1.4),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
+                    Expanded(
+                      child: Text(
+                        record.content.isNotEmpty ? record.content : '내용이 없습니다.',
+                        style: bodyText2.copyWith(height: 1.4),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         Icon(
@@ -1150,9 +1152,8 @@ class _TripRecordSlideCard extends StatelessWidget {
                     ),
                   ],
                 ),
-              ),
             ),
-          ],
+            )],
         ),
       ),
     );

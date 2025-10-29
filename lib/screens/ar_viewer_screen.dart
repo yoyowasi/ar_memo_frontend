@@ -120,8 +120,8 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
         ARNode? node;
 
         if (shouldUseAnchor) {
-          final nonNullTransform = transform!;
-          final nonNullAnchorManager = anchorManager!;
+          final nonNullTransform = transform;
+          final nonNullAnchorManager = anchorManager;
 
           anchor = ARPlaneAnchor(transformation: nonNullTransform);
           final didAddAnchor = await nonNullAnchorManager.addAnchor(anchor);
