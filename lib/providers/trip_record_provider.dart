@@ -1,20 +1,16 @@
 // lib/providers/trip_record_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+
 import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:ar_memo_frontend/providers/api_service_provider.dart';
 import 'package:ar_memo_frontend/repositories/trip_record_repository.dart';
 
-part 'trip_record_provider.g.dart';
-
-@riverpod
-TripRecordRepository tripRecordRepository(Ref ref) {
+final tripRecordRepositoryProvider = Provider<TripRecordRepository>((ref) {
   final apiService = ref.watch(apiServiceProvider);
   return TripRecordRepository(apiService);
-}
+});
 
-@riverpod
-class TripRecords extends _$TripRecords {
+class TripRecords extends AutoDisposeAsyncNotifier<List<TripRecord>> {
   @override
   Future<List<TripRecord>> build() async {
     return ref.watch(tripRecordRepositoryProvider).getTripRecords();
@@ -90,8 +86,11 @@ class TripRecords extends _$TripRecords {
   }
 }
 
-@riverpod
-Future<TripRecord> tripRecordDetail(Ref ref, String id) async {
+final tripRecordsProvider = AutoDisposeAsyncNotifierProvider<TripRecords, List<TripRecord>>(
+  TripRecords.new,
+);
+
+final tripRecordDetailProvider = FutureProvider.family<TripRecord, String>((ref, id) async {
   final repo = ref.watch(tripRecordRepositoryProvider);
   return repo.getTripRecord(id);
-}
+});
