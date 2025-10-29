@@ -119,9 +119,12 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
         ARPlaneAnchor? anchor;
         ARNode? node;
 
-        if (shouldUseAnchor && transform != null && anchorManager != null) {
-          anchor = ARPlaneAnchor(transformation: transform);
-          final didAddAnchor = await anchorManager.addAnchor(anchor);
+        if (shouldUseAnchor) {
+          final nonNullTransform = transform!;
+          final nonNullAnchorManager = anchorManager!;
+
+          anchor = ARPlaneAnchor(transformation: nonNullTransform);
+          final didAddAnchor = await nonNullAnchorManager.addAnchor(anchor);
           if (didAddAnchor != true) {
             continue;
           }
@@ -134,7 +137,7 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
           final didAddNode =
               await objectManager.addNode(node, planeAnchor: anchor);
           if (didAddNode != true) {
-            await anchorManager.removeAnchor(anchor);
+            await nonNullAnchorManager.removeAnchor(anchor);
             continue;
           }
         } else if (fallbackPlacement != null) {

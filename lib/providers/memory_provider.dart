@@ -1,46 +1,38 @@
 import 'dart:async';
 
-import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:ar_memo_frontend/models/memory.dart';
 import 'package:ar_memo_frontend/models/memory_summary.dart';
-import 'package:ar_memo_frontend/repositories/memory_repository.dart';
 import 'package:ar_memo_frontend/providers/api_service_provider.dart';
+import 'package:ar_memo_frontend/repositories/memory_repository.dart';
 
-part 'memory_provider.g.dart';
-
-@riverpod
-MemoryRepository memoryRepository(Ref ref) {
+final memoryRepositoryProvider = Provider<MemoryRepository>((ref) {
   final apiService = ref.watch(apiServiceProvider);
   return MemoryRepository(apiService);
-}
+});
 
-@riverpod
-Future<List<Memory>> myMemories(Ref ref) async {
+final myMemoriesProvider = FutureProvider<List<Memory>>((ref) async {
   final repository = ref.watch(memoryRepositoryProvider);
   return repository.getMyMemories(limit: 12);
-}
+});
 
-@riverpod
-Future<MemorySummary> memorySummary(Ref ref) async {
+final memorySummaryProvider = FutureProvider<MemorySummary>((ref) async {
   final repository = ref.watch(memoryRepositoryProvider);
   return repository.getMemorySummary();
-}
+});
 
-@riverpod
-Future<Memory> memoryDetail(Ref ref, String id) async {
+final memoryDetailProvider = FutureProvider.family<Memory, String>((ref, id) async {
   final repository = ref.watch(memoryRepositoryProvider);
   return repository.getMemoryById(id);
-}
+});
 
-@riverpod
-Future<List<Memory>> groupMemories(Ref ref, String groupId) async {
+final groupMemoriesProvider = FutureProvider.family<List<Memory>, String>((ref, groupId) async {
   final repository = ref.watch(memoryRepositoryProvider);
   return repository.getGroupMemories(groupId);
-}
+});
 
-@riverpod
-class MemoryCreator extends _$MemoryCreator {
+class MemoryCreator extends AutoDisposeAsyncNotifier<Memory?> {
   @override
   FutureOr<Memory?> build() {
     return null;
@@ -81,3 +73,6 @@ class MemoryCreator extends _$MemoryCreator {
     return result.requireValue;
   }
 }
+
+final memoryCreatorProvider =
+    AutoDisposeAsyncNotifierProvider<MemoryCreator, Memory?>(MemoryCreator.new);
