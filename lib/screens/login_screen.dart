@@ -62,7 +62,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               children: [
                 const Spacer(flex: 2),
                 const Text(
-                  'AR-Memo',
+                  '여행 메모',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 48,

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/models/group.dart';
+import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:ar_memo_frontend/providers/auth_provider.dart';
 import 'package:ar_memo_frontend/providers/user_provider.dart';
 import 'package:ar_memo_frontend/providers/group_provider.dart';
 import 'package:ar_memo_frontend/providers/memory_provider.dart';
+import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
+import 'package:ar_memo_frontend/screens/app_info_screen.dart';
 import 'package:ar_memo_frontend/screens/group_detail_screen.dart';
+import 'package:ar_memo_frontend/screens/notification_settings_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 
@@ -110,6 +114,7 @@ class MyPageScreen extends ConsumerWidget {
     final userAsync = ref.watch(currentUserProvider);
     final myGroupsAsync = ref.watch(myGroupsProvider);
     final memorySummaryAsync = ref.watch(memorySummaryProvider);
+    final tripRecordsAsync = ref.watch(tripRecordsProvider);
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -128,6 +133,7 @@ class MyPageScreen extends ConsumerWidget {
             ref.refresh(currentUserProvider.future),
             ref.refresh(myGroupsProvider.future),
             ref.refresh(memorySummaryProvider.future),
+            ref.refresh(tripRecordsProvider.future),
           ]);
         },
         child: ListView(
@@ -156,13 +162,40 @@ class MyPageScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(vertical: 16.0),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))]),
                 child: memorySummaryAsync.when(
-                    data: (summary) => Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                      _buildStatItem('전체 일기', summary.total.toString()),
-                      _buildStatItem('방문한 달', '-'), // TODO
-                      _buildStatItem('방문한 곳', '-'), // TODO
-                    ],),
-                    loading: () => const SizedBox(height: 60, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
-                    error: (_, __) => const SizedBox(height: 60, child: Center(child: Text('통계 로딩 실패', style: bodyText2)))
+                  data: (summary) => tripRecordsAsync.when(
+                    data: (records) {
+                      final visitedMonths = _countVisitedMonths(records);
+                      final visitedPlaces = _countVisitedPlaces(records);
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildStatItem('전체 일기', summary.total.toString()),
+                          _buildStatItem('방문한 달', visitedMonths.toString()),
+                          _buildStatItem('방문한 장소', visitedPlaces.toString()),
+                        ],
+                      );
+                    },
+                    loading: () => const SizedBox(
+                      height: 60,
+                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    ),
+                    error: (err, __) => SizedBox(
+                      height: 60,
+                      child: Center(
+                        child: Text('여행 기록 로딩 실패: $err', style: bodyText2),
+                      ),
+                    ),
+                  ),
+                  loading: () => const SizedBox(
+                    height: 60,
+                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                  error: (err, __) => SizedBox(
+                    height: 60,
+                    child: Center(
+                      child: Text('통계 로딩 실패: $err', style: bodyText2),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -179,11 +212,14 @@ class MyPageScreen extends ConsumerWidget {
                   itemCount: groups.length,
                   itemBuilder: (context, index) {
                     final group = groups[index];
+                    final memberCount = group.memberIds.isEmpty
+                        ? 1
+                        : group.memberIds.length;
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 4.0),
                       leading: CircleAvatar(backgroundColor: Color(group.colorValue), child: Text(group.name.isNotEmpty ? group.name[0].toUpperCase() : '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                       title: Text(group.name, style: bodyText1),
-                      subtitle: Text('멤버 ${group.memberIds.length + 1}명', style: bodyText2), // TODO: 멤버 수 정확히 표시
+                      subtitle: Text('멤버 $memberCount명', style: bodyText2),
                       trailing: const Icon(Icons.chevron_right, color: subTextColor),
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => GroupDetailScreen(groupId: group.id))),
                       onLongPress: () => _showGroupDialog(context, ref, groupToEdit: group),
@@ -197,8 +233,24 @@ class MyPageScreen extends ConsumerWidget {
             const Divider(height: 24, thickness: 1, indent: 16, endIndent: 16),
             // 설정
             _buildSectionTitle('설정'),
-            _buildMenuListItem(icon: Icons.notifications_outlined, title: '알림 설정', onTap: () { /* TODO */ }),
-            _buildMenuListItem(icon: Icons.info_outline, title: '앱 정보', onTap: () { /* TODO */ }),
+            _buildMenuListItem(
+                icon: Icons.notifications_outlined,
+                title: '알림 설정',
+                onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationSettingsScreen(),
+                      ),
+                    )),
+            _buildMenuListItem(
+                icon: Icons.info_outline,
+                title: '앱 정보',
+                onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AppInfoScreen(),
+                      ),
+                    )),
             const Divider(height: 16, thickness: 1, indent: 16, endIndent: 16),
             _buildMenuListItem(icon: Icons.logout, title: '로그아웃', onTap: () => ref.read(authStateProvider.notifier).logout()),
             const SizedBox(height: 24),
@@ -214,6 +266,26 @@ class MyPageScreen extends ConsumerWidget {
       Text(value, style: heading1.copyWith(color: primaryColor, fontSize: 22)), const SizedBox(height: 4),
       Text(label, style: bodyText2),
     ],);
+  }
+
+  int _countVisitedMonths(List<TripRecord> records) {
+    final months = <String>{};
+    for (final record in records) {
+      final key = '${record.date.year}-${record.date.month}';
+      months.add(key);
+    }
+    return months.length;
+  }
+
+  int _countVisitedPlaces(List<TripRecord> records) {
+    final places = <String>{};
+    for (final record in records) {
+      final lat = record.latitude;
+      final lng = record.longitude;
+      if (lat == null || lng == null) continue;
+      places.add('${lat.toStringAsFixed(4)}:${lng.toStringAsFixed(4)}');
+    }
+    return places.length;
   }
 
   // 섹션 타이틀 위젯
