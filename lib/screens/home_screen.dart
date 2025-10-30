@@ -38,12 +38,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final Map<String, KImage> _photoMarkerIcons = {};
   LatLng? _currentMapCenter;
   late final PageController _recordPageController;
-  int _currentRecordPage = 0;
+  late final ValueNotifier<int> _currentRecordPageNotifier;
 
   @override
   void initState() {
     super.initState();
     _recordPageController = PageController(viewportFraction: 0.88);
+    _currentRecordPageNotifier = ValueNotifier<int>(0);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         // onMapReady에서 마커 로딩
@@ -54,6 +55,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void dispose() {
     _recordPageController.dispose();
+    _currentRecordPageNotifier.dispose();
     super.dispose();
   }
 
@@ -579,91 +581,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final bool? usePhoto = await showDialog<bool>(
       context: context,
-      builder: (BuildContext dialogContext) {
-        var isProcessing = false;
-        return StatefulBuilder(
-          builder: (BuildContext _, StateSetter setState) {
-            return AlertDialog(
-              title: const Text('사진 사용'),
-              content: Image.file(File(photo.path)),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: isProcessing
-                      ? null
-                      : () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('다시 찍기'),
-                ),
-                ElevatedButton(
-                  onPressed: isProcessing
-                      ? null
-                      : () {
-                          setState(() {
-                            isProcessing = true;
-                          });
-                          Navigator.of(dialogContext).pop(true);
-                        },
-                  child: const Text('이 사진 사용'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) => _ARPhotoReviewDialog(photoPath: photo.path),
     );
 
     if (usePhoto == true && mounted) {
-      final textController = TextEditingController();
-      final bool? shouldSave = await showDialog<bool>(
+      final String? memoText = await showDialog<String?>(
         context: context,
-        builder: (dialogContext) {
-          var isSubmitting = false;
-          return StatefulBuilder(
-            builder: (BuildContext _, StateSetter setState) {
-              return AlertDialog(
-                title: const Text('AR 메모 저장'),
-                content: TextField(
-                  controller: textController,
-                  decoration: const InputDecoration(
-                    labelText: '메모 내용 (선택)',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: isSubmitting
-                        ? null
-                        : () => Navigator.of(dialogContext).pop(false),
-                    child: const Text('취소'),
-                  ),
-                  ElevatedButton(
-                    onPressed: isSubmitting
-                        ? null
-                        : () {
-                            setState(() {
-                              isSubmitting = true;
-                            });
-                            Navigator.of(dialogContext).pop(true);
-                          },
-                    child: const Text('저장'),
-                  ),
-                ],
-              );
-            },
-          );
-        },
+        builder: (_) => const _ARMemoInputDialog(),
       );
 
-      final memoryText = textController.text.trim();
-      textController.dispose();
-
-      if (shouldSave != true) {
+      if (memoText == null) {
         return;
       }
 
-      if (!mounted) {
-        return;
-      }
+      final memoryText = memoText.trim();
 
       final rootNavigator = Navigator.of(context, rootNavigator: true);
       var progressShown = false;
@@ -917,16 +848,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             );
                           }
 
-                          final clampedIndex = _currentRecordPage.clamp(0, records.length - 1);
-                          if (clampedIndex != _currentRecordPage) {
+                          final currentIndex = _currentRecordPageNotifier.value;
+                          final clampedIndex = currentIndex.clamp(0, records.length - 1).toInt();
+                          if (clampedIndex != currentIndex) {
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               if (!mounted) return;
                               if (_recordPageController.hasClients) {
                                 _recordPageController.jumpToPage(clampedIndex);
                               }
-                              setState(() {
-                                _currentRecordPage = clampedIndex;
-                              });
+                              _currentRecordPageNotifier.value = clampedIndex;
                             });
                           }
 
@@ -941,9 +871,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   controller: _recordPageController,
                                   itemCount: records.length,
                                   onPageChanged: (index) {
-                                    setState(() {
-                                      _currentRecordPage = index;
-                                    });
+                                    _currentRecordPageNotifier.value = index;
                                   },
                                   itemBuilder: (context, index) {
                                     final record = records[index];
@@ -965,23 +893,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: List.generate(records.length, (index) {
-                                  final isActive = index == _currentRecordPage;
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 250),
-                                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                                    height: 8,
-                                    width: isActive ? 18 : 8,
-                                    decoration: BoxDecoration(
-                                      color: isActive
-                                          ? primaryColor
-                                          : Colors.grey.shade300,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
+                              ValueListenableBuilder<int>(
+                                valueListenable: _currentRecordPageNotifier,
+                                builder: (_, currentPage, __) {
+                                  final safePage = records.isEmpty
+                                      ? 0
+                                      : currentPage.clamp(0, records.length - 1).toInt();
+                                  return Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: List.generate(records.length, (index) {
+                                      final isActive = index == safePage;
+                                      return AnimatedContainer(
+                                        duration: const Duration(milliseconds: 250),
+                                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                                        height: 8,
+                                        width: isActive ? 18 : 8,
+                                        decoration: BoxDecoration(
+                                          color: isActive
+                                              ? primaryColor
+                                              : Colors.grey.shade300,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      );
+                                    }),
                                   );
-                                }),
+                                },
                               ),
                               const SizedBox(height: 12),
                             ],
@@ -1008,6 +944,126 @@ $err''',
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ARPhotoReviewDialog extends StatefulWidget {
+  const _ARPhotoReviewDialog({required this.photoPath});
+
+  final String photoPath;
+
+  @override
+  State<_ARPhotoReviewDialog> createState() => _ARPhotoReviewDialogState();
+}
+
+class _ARPhotoReviewDialogState extends State<_ARPhotoReviewDialog> {
+  bool _isProcessing = false;
+
+  void _handleDecision(bool result) {
+    if (_isProcessing) return;
+    setState(() {
+      _isProcessing = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Navigator.of(context).pop(result);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('사진 사용'),
+      content: Image.file(File(widget.photoPath)),
+      actions: <Widget>[
+        TextButton(
+          onPressed: _isProcessing ? null : () => _handleDecision(false),
+          child: const Text('다시 찍기'),
+        ),
+        ElevatedButton(
+          onPressed: _isProcessing ? null : () => _handleDecision(true),
+          child: _isProcessing
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('이 사진 사용'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ARMemoInputDialog extends StatefulWidget {
+  const _ARMemoInputDialog();
+
+  @override
+  State<_ARMemoInputDialog> createState() => _ARMemoInputDialogState();
+}
+
+class _ARMemoInputDialogState extends State<_ARMemoInputDialog> {
+  late final TextEditingController _controller;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_isSubmitting) return;
+    setState(() {
+      _isSubmitting = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Navigator.of(context).pop(_controller.text);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('AR 메모 저장'),
+      content: TextField(
+        controller: _controller,
+        decoration: const InputDecoration(
+          labelText: '메모 내용 (선택)',
+          border: OutlineInputBorder(),
+        ),
+        maxLines: 3,
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting
+              ? null
+              : () {
+                  Navigator.of(context).pop(null);
+                },
+          child: const Text('취소'),
+        ),
+        ElevatedButton(
+          onPressed: _isSubmitting ? null : _submit,
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('저장'),
+        ),
+      ],
     );
   }
 }

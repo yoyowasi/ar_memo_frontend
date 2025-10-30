@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:vector_math/vector_math_64.dart' as vector;
+import 'package:intl/intl.dart';
 
 import 'package:ar_memo_frontend/models/memory.dart';
 import 'package:ar_memo_frontend/providers/memory_provider.dart';
@@ -37,6 +38,8 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
   Position? _currentPosition;
   List<Memory> _latestMemories = [];
   List<Memory> _nearbyMemories = [];
+  int _selectedNearbyIndex = 0;
+  Memory? _selectedNearbyMemory;
   bool _isSyncingAnchors = false;
 
   @override
@@ -160,11 +163,13 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
             usesAnchor: shouldUseAnchor,
             fallbackPosition: fallbackPlacement?.position,
             fallbackRotation: fallbackPlacement?.rotation,
+            memoryId: memory.id,
           );
         }
 
         final idsToRemove = _placedContents.keys
-            .where((id) => !idsToKeep.contains(id))
+            .where((id) =>
+                !idsToKeep.contains(id) && !id.startsWith('tap_'))
             .toList(growable: false);
         for (final id in idsToRemove) {
           final content = _placedContents.remove(id);
@@ -184,7 +189,11 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
   void _refreshNearbyMemories() {
     final position = _currentPosition;
     if (position == null) {
-      setState(() => _nearbyMemories = []);
+      setState(() {
+        _nearbyMemories = [];
+        _selectedNearbyIndex = 0;
+        _selectedNearbyMemory = null;
+      });
       if (_placedContents.isNotEmpty) {
         unawaited(_syncAnchorsWithMemories());
       }
@@ -202,7 +211,18 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
     }).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    setState(() => _nearbyMemories = nearby);
+    setState(() {
+      _nearbyMemories = nearby;
+      if (nearby.isEmpty) {
+        _selectedNearbyIndex = 0;
+        _selectedNearbyMemory = null;
+      } else {
+        final clamped =
+            _selectedNearbyIndex.clamp(0, nearby.length - 1).toInt();
+        _selectedNearbyIndex = clamped;
+        _selectedNearbyMemory = nearby[clamped];
+      }
+    });
     unawaited(_syncAnchorsWithMemories());
   }
 
@@ -268,23 +288,106 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
     );
     await _arObjectManager?.onInitialize();
 
-    _arSessionManager?.onPlaneOrPointTap = (hits) async {
-      if (hits.isEmpty) return;
-      final hit = hits.first;
-      final anchor = ARPlaneAnchor(transformation: hit.worldTransform);
-      final didAddAnchor = await _arAnchorManager?.addAnchor(anchor) ?? false;
-      if (!didAddAnchor) return;
-
-      final node = ARNode(
-        type: NodeType.webGLB,
-        uri:
-            'https://github.com/KhronosGroup/glTF-Sample-Models/raw/master/2.0/Cube/glTF-Binary/Cube.glb',
-        scale: vector.Vector3.all(0.1),
-      );
-      await _arObjectManager?.addNode(node, planeAnchor: anchor);
-    };
+    _arSessionManager?.onPlaneOrPointTap = _handlePlaneTap;
 
     await _syncAnchorsWithMemories();
+  }
+
+  void _selectNextNearbyMemory() {
+    if (_nearbyMemories.isEmpty) {
+      return;
+    }
+    final nextIndex = (_selectedNearbyIndex + 1) % _nearbyMemories.length;
+    setState(() {
+      _selectedNearbyIndex = nextIndex;
+      _selectedNearbyMemory = _nearbyMemories[nextIndex];
+    });
+  }
+
+  Future<void> _handlePlaneTap(List<ARHitTestResult> hits) async {
+    if (hits.isEmpty) return;
+    final memory = _selectedNearbyMemory;
+    if (memory == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('근처에 표시할 추억이 없습니다.')),
+        );
+      }
+      return;
+    }
+
+    final anchorManager = _arAnchorManager;
+    final objectManager = _arObjectManager;
+    if (anchorManager == null || objectManager == null) {
+      return;
+    }
+
+    await _removeManualPlacements();
+
+    final hit = hits.first;
+    final anchor = ARPlaneAnchor(transformation: hit.worldTransform);
+    final didAddAnchor = await anchorManager.addAnchor(anchor);
+    if (!didAddAnchor) {
+      return;
+    }
+
+    final node = ARNode(
+      type: NodeType.localGLTF2,
+      uri: 'Models/frame.glb',
+      scale: vector.Vector3(0.45, 0.45, 0.45),
+    );
+
+    final didAddNode = await objectManager.addNode(node, planeAnchor: anchor);
+    if (!didAddNode) {
+      await anchorManager.removeAnchor(anchor);
+      return;
+    }
+
+    final manualId = 'tap_${DateTime.now().millisecondsSinceEpoch}';
+    _placedContents[manualId] = _PlacedContent(
+      anchor: anchor,
+      node: node,
+      usesAnchor: true,
+      memoryId: memory.id,
+    );
+
+    if (mounted) {
+      final snippet = memory.text?.trim();
+      final display = (snippet != null && snippet.isNotEmpty)
+          ? snippet.length > 40
+              ? '${snippet.substring(0, 37)}…'
+              : snippet
+          : null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            display != null
+                ? '선택한 추억을 벽에 배치했습니다: $display'
+                : '선택한 추억을 벽에 배치했습니다.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _removeManualPlacements() async {
+    if (_placedContents.isEmpty) return;
+    final manualIds = _placedContents.keys
+        .where((id) => id.startsWith('tap_'))
+        .toList(growable: false);
+    if (manualIds.isEmpty) return;
+
+    final anchorManager = _arAnchorManager;
+    final objectManager = _arObjectManager;
+    for (final id in manualIds) {
+      final content = _placedContents.remove(id);
+      if (content == null) continue;
+      await objectManager?.removeNode(content.node);
+      final anchor = content.anchor;
+      if (anchor != null) {
+        await anchorManager?.removeAnchor(anchor);
+      }
+    }
   }
 
   Widget _buildNearbyOverlay(AsyncValue<List<Memory>> memoriesAsync) {
@@ -307,37 +410,75 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
       );
     }
 
-    return SizedBox(
-      height: 92,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _nearbyMemories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, index) {
-          final memory = _nearbyMemories[index];
-          final imageUrl = memory.thumbUrl ?? memory.photoUrl;
-          return GestureDetector(
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${memory.createdAt.year}년 메모 선택: ${memory.id}')),
-              );
-            },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                width: 92,
-                height: 92,
-                color: Colors.white24,
-                child: imageUrl == null
-                    ? const Icon(Icons.image_not_supported, color: Colors.white)
-                    : Image.network(
-                        toAbsoluteUrl(imageUrl),
-                        fit: BoxFit.cover,
-                      ),
-              ),
+    final memory = _selectedNearbyMemory ?? _nearbyMemories.first;
+    final imageUrl = memory.thumbUrl ?? memory.photoUrl;
+    final title =
+        (memory.tags.isNotEmpty ? '#${memory.tags.first}' : 'AR 메모');
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 96, maxWidth: 360),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 72,
+              height: 72,
+              child: imageUrl == null
+                  ? const ColoredBox(
+                      color: Colors.black26,
+                      child: Icon(Icons.image_not_supported, color: Colors.white70),
+                    )
+                  : Image.network(
+                      toAbsoluteUrl(imageUrl),
+                      fit: BoxFit.cover,
+                    ),
             ),
-          );
-        },
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  DateFormat('yyyy.MM.dd').format(memory.createdAt),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+                if (memory.text?.isNotEmpty ?? false) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    memory.text!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _nearbyMemories.length < 2 ? null : _selectNextNearbyMemory,
+            color: Colors.white,
+            icon: const Icon(Icons.swap_horiz),
+          ),
+        ],
       ),
     );
   }
@@ -388,11 +529,6 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
               alignment: Alignment.topCenter,
               child: Container(
                 margin: const EdgeInsets.only(top: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.4),
-                  borderRadius: BorderRadius.circular(16),
-                ),
                 child: _buildNearbyOverlay(memoriesAsync),
               ),
             ),
@@ -435,6 +571,7 @@ class _PlacedContent {
     required this.usesAnchor,
     this.fallbackPosition,
     this.fallbackRotation,
+    this.memoryId,
   });
 
   final ARPlaneAnchor? anchor;
@@ -442,4 +579,5 @@ class _PlacedContent {
   final bool usesAnchor;
   final vector.Vector3? fallbackPosition;
   final vector.Vector4? fallbackRotation;
+  final String? memoryId;
 }
