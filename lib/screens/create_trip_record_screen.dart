@@ -41,6 +41,7 @@ class _CreateTripRecordScreenState
   final List<String> _photoUrls = []; // 최종 서버 URL 목록 (기존 + 신규)
   final List<XFile> _localFiles = []; // 새로 추가한 로컬 파일 목록
   final List<String> _removedUrls = []; // 삭제된 기존 서버 URL 목록
+  final Map<String, String> _localFileToUrl = {}; // 로컬 파일 경로 ↔ 업로드 URL 매핑
 
   bool get _isEditMode => widget.recordToEdit != null;
 
@@ -70,18 +71,36 @@ class _CreateTripRecordScreenState
     final List<XFile> pickedFiles = await picker.pickMultiImage();
     if (pickedFiles.isEmpty || !mounted) return;
 
-    setState(() { _isUploading = true; _localFiles.addAll(pickedFiles); });
+    setState(() {
+      _isUploading = true;
+      _localFiles.addAll(pickedFiles);
+    });
 
     try {
       final repository = ref.read(uploadRepositoryProvider);
-      final results = await Future.wait(pickedFiles.map((file) => repository.uploadPhoto(file)));
-      // 성공한 URL만 추가
-      _photoUrls.addAll(results.map((result) => result.url));
+      final results = await Future.wait(
+        pickedFiles.map((file) => repository.uploadPhoto(file)),
+      );
+      if (!mounted) return;
+      setState(() {
+        for (var i = 0; i < pickedFiles.length; i++) {
+          final file = pickedFiles[i];
+          final url = results[i].url;
+          _photoUrls.add(url);
+          _localFileToUrl[file.path] = url;
+        }
+      });
     } catch (e) {
       if (mounted) {
-        for (var file in pickedFiles) {
-        _localFiles.remove(file);
-      }
+        setState(() {
+          for (final file in pickedFiles) {
+            _localFiles.remove(file);
+            final removed = _localFileToUrl.remove(file.path);
+            if (removed != null) {
+              _photoUrls.remove(removed);
+            }
+          }
+        });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('이미지 업로드 중 오류 발생: $e')));
       }
     } finally {
@@ -142,6 +161,47 @@ class _CreateTripRecordScreenState
     }
   }
 
+  Future<void> _confirmDelete() async {
+    final record = widget.recordToEdit;
+    if (record == null || _isLoading) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('일기 삭제'),
+        content: const Text('정말로 이 일기를 삭제하시겠어요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    try {
+      await ref.read(tripRecordsProvider.notifier).deleteTripRecord(record.id);
+      messenger.showSnackBar(const SnackBar(content: Text('일기가 삭제되었습니다.')));
+      navigator.pop(true);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -172,8 +232,10 @@ class _CreateTripRecordScreenState
       onDelete: () {
         setState(() {
           _localFiles.remove(file);
-          // 업로드 성공 후 URL 목록에 추가된 경우, 해당 URL도 제거
-          _photoUrls.removeWhere((url) => url.contains(file.name));
+          final removedUrl = _localFileToUrl.remove(file.path);
+          if (removedUrl != null) {
+            _photoUrls.remove(removedUrl);
+          }
         });
       },
     )));
@@ -221,9 +283,15 @@ class _CreateTripRecordScreenState
         backgroundColor: Colors.white,
         elevation: 0,
         bottom: PreferredSize(preferredSize: const Size.fromHeight(1.0), child: Container(color: borderColor, height: 1.0)),
-        // actions: _isEditMode ? [
-        //   IconButton(icon: const Icon(Icons.delete_outline, color: subTextColor), tooltip: '삭제', onPressed: () { /* TODO: 삭제 로직 */ }),
-        // ] : null, // 삭제 버튼 필요 시 활성화
+        actions: _isEditMode
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: subTextColor),
+                  tooltip: '삭제',
+                  onPressed: _isLoading ? null : _confirmDelete,
+                ),
+              ]
+            : null,
       ),
       body: Form(
         key: _formKey,
