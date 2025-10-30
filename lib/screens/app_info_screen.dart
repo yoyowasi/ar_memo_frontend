@@ -23,7 +23,7 @@ class AppInfoScreen extends StatelessWidget {
         children: [
           ListTile(
             leading: const Icon(Icons.info_outline, color: primaryColor),
-            title: const Text('여행 메모'),
+            title: const Text('PlaceNote'),
             subtitle: const Text('나만의 여행을 지도에 기록하고 관리하세요.'),
           ),
           const Divider(height: 32),

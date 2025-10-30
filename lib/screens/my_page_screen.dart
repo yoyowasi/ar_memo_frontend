@@ -164,14 +164,15 @@ class MyPageScreen extends ConsumerWidget {
                 child: memorySummaryAsync.when(
                   data: (summary) => tripRecordsAsync.when(
                     data: (records) {
-                      final visitedMonths = _countVisitedMonths(records);
-                      final visitedPlaces = _countVisitedPlaces(records);
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      final computedTotal = summary.total;
+                      final fallbackTotal = records.length;
+                      final totalDisplay = computedTotal >= fallbackTotal
+                          ? computedTotal
+                          : fallbackTotal;
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          _buildStatItem('전체 일기', summary.total.toString()),
-                          _buildStatItem('방문한 달', visitedMonths.toString()),
-                          _buildStatItem('방문한 장소', visitedPlaces.toString()),
+                          _buildStatItem('전체 일기', totalDisplay.toString()),
                         ],
                       );
                     },
@@ -266,26 +267,6 @@ class MyPageScreen extends ConsumerWidget {
       Text(value, style: heading1.copyWith(color: primaryColor, fontSize: 22)), const SizedBox(height: 4),
       Text(label, style: bodyText2),
     ],);
-  }
-
-  int _countVisitedMonths(List<TripRecord> records) {
-    final months = <String>{};
-    for (final record in records) {
-      final key = '${record.date.year}-${record.date.month}';
-      months.add(key);
-    }
-    return months.length;
-  }
-
-  int _countVisitedPlaces(List<TripRecord> records) {
-    final places = <String>{};
-    for (final record in records) {
-      final lat = record.latitude;
-      final lng = record.longitude;
-      if (lat == null || lng == null) continue;
-      places.add('${lat.toStringAsFixed(4)}:${lng.toStringAsFixed(4)}');
-    }
-    return places.length;
   }
 
   // 섹션 타이틀 위젯
