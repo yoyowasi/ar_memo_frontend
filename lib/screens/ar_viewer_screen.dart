@@ -41,6 +41,9 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
   int _selectedNearbyIndex = 0;
   Memory? _selectedNearbyMemory;
   bool _isSyncingAnchors = false;
+  Memory? _previewMemory;
+  bool _previewVisible = false;
+  Timer? _previewDismissTimer;
 
   @override
   void initState() {
@@ -368,6 +371,55 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
         ),
       );
     }
+
+    _showPreviewForMemory(memory);
+  }
+
+  void _showPreviewForMemory(Memory memory) {
+    _previewDismissTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _previewMemory = memory;
+      _previewVisible = true;
+    });
+    _previewDismissTimer = Timer(const Duration(seconds: 6), () {
+      if (!mounted) return;
+      _hidePreview();
+    });
+  }
+
+  void _hidePreview({bool immediate = false}) {
+    _previewDismissTimer?.cancel();
+    if (!mounted) {
+      _previewMemory = null;
+      _previewVisible = false;
+      return;
+    }
+    if (immediate) {
+      setState(() {
+        _previewVisible = false;
+        _previewMemory = null;
+      });
+      return;
+    }
+    if (!_previewVisible) {
+      if (_previewMemory != null) {
+        setState(() => _previewMemory = null);
+      }
+      return;
+    }
+    setState(() {
+      _previewVisible = false;
+    });
+  }
+
+  void _handlePreviewFadeEnd() {
+    if (!mounted) return;
+    if (!_previewVisible && _previewMemory != null) {
+      setState(() {
+        _previewMemory = null;
+      });
+    }
   }
 
   Future<void> _removeManualPlacements() async {
@@ -533,6 +585,18 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
               ),
             ),
           ),
+          if (_previewMemory != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 48,
+              child: _PlacedPreviewOverlay(
+                memory: _previewMemory!,
+                visible: _previewVisible,
+                onClose: () => _hidePreview(immediate: true),
+                onFadeEnd: _handlePreviewFadeEnd,
+              ),
+            ),
         ],
       ),
     );
@@ -552,8 +616,203 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
       }
       _placedContents.clear();
     }
+    _previewDismissTimer?.cancel();
     _arSessionManager?.dispose();
     super.dispose();
+  }
+}
+
+class _PlacedPreviewOverlay extends StatelessWidget {
+  const _PlacedPreviewOverlay({
+    required this.memory,
+    required this.visible,
+    required this.onClose,
+    required this.onFadeEnd,
+  });
+
+  final Memory memory;
+  final bool visible;
+  final VoidCallback onClose;
+  final VoidCallback onFadeEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = memory.photoUrl ?? memory.thumbUrl;
+    final transform = vector.Matrix4.identity()
+      ..setEntry(3, 2, 0.0016)
+      ..rotateX(-0.18)
+      ..rotateY(0.08);
+
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 220),
+        opacity: visible ? 1.0 : 0.0,
+        onEnd: onFadeEnd,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 220),
+          scale: visible ? 1.0 : 0.96,
+          curve: Curves.easeInOut,
+          child: Transform(
+            alignment: Alignment.center,
+            transform: transform,
+            child: GestureDetector(
+              onTap: onClose,
+              child: Container(
+                width: 260,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.35),
+                      blurRadius: 24,
+                      offset: const Offset(0, 18),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Stack(
+                    children: [
+                      AspectRatio(
+                        aspectRatio: 3 / 4,
+                        child: imageUrl != null
+                            ? Image.network(
+                                toAbsoluteUrl(imageUrl),
+                                fit: BoxFit.cover,
+                              )
+                            : Container(
+                                color: Colors.black12,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.image_not_supported_outlined,
+                                    color: Colors.white,
+                                    size: 42,
+                                  ),
+                                ),
+                              ),
+                      ),
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.45),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.all(6.0),
+                            child: Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(14, 18, 14, 16),
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Color.fromRGBO(0, 0, 0, 0.65),
+                              ],
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                DateFormat('yyyy.MM.dd HH:mm').format(memory.createdAt),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              if (memory.text?.isNotEmpty ?? false) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  memory.text!,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                              if (memory.tags.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: memory.tags.take(2).map((tag) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '#$tag',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: 14,
+                        top: 14,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            child: Text(
+                              'AR 미리보기',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
