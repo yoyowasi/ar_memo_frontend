@@ -1,19 +1,21 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
+
+import 'package:ar_memo_frontend/models/group.dart';
 import 'package:ar_memo_frontend/models/trip_record.dart';
-import 'package:flutter/material.dart';
+import 'package:ar_memo_frontend/providers/group_provider.dart';
+import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
+import 'package:ar_memo_frontend/providers/upload_provider.dart';
+import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
+import 'package:ar_memo_frontend/theme/colors.dart';
+import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:ar_memo_frontend/utils/url_utils.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
-import 'package:ar_memo_frontend/providers/upload_provider.dart';
-import 'package:ar_memo_frontend/providers/memory_provider.dart';
-import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
-import 'package:ar_memo_frontend/theme/colors.dart';
-import 'package:ar_memo_frontend/theme/text_styles.dart';
-import 'dart:math';
 
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 import 'package:geolocator/geolocator.dart';
@@ -291,6 +293,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     bool isLoading = false;
     double? tripLatitude;
     double? tripLongitude;
+    String? selectedGroupId;
 
     showDialog(
       context: context,
@@ -408,6 +411,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   title: titleController.text,
                   content: contentController.text,
                   date: selectedDate,
+                  groupId: selectedGroupId,
                   photoUrls: photoUrls,
                   latitude: tripLatitude,
                   longitude: tripLongitude,
@@ -520,6 +524,76 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    Consumer(
+                      builder: (context, consumerRef, _) {
+                        final groupsAsync = consumerRef.watch(myGroupsProvider);
+                        final decoration = InputDecoration(
+                          labelText: '그룹',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                        );
+
+                        return groupsAsync.when(
+                          data: (List<Group> groups) {
+                            final validSelection =
+                                groups.any((group) => group.id == selectedGroupId)
+                                    ? selectedGroupId
+                                    : null;
+
+                            return InputDecorator(
+                              decoration: decoration,
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String?>(
+                                  isExpanded: true,
+                                  value: validSelection,
+                                  items: [
+                                    const DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text('그룹 선택 안 함'),
+                                    ),
+                                    ...groups.map(
+                                      (group) => DropdownMenuItem<String?>(
+                                        value: group.id,
+                                        child: Text(group.name),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (value) {
+                                    setState(() => selectedGroupId = value);
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                          loading: () => InputDecorator(
+                            decoration: decoration,
+                            child: const SizedBox(
+                              height: 36,
+                              child: Center(
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                            ),
+                          ),
+                          error: (error, _) => InputDecorator(
+                            decoration: decoration,
+                            child: Text(
+                              '그룹을 불러오지 못했습니다',
+                              style: bodyText2.copyWith(color: Colors.redAccent),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: contentController,
                       decoration: InputDecoration(
@@ -571,168 +645,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Future<void> _handleArRecordCreation() async {
-    final picker = ImagePicker();
-    final XFile? photo = await picker.pickImage(source: ImageSource.camera);
-
-    if (photo == null || !mounted) return;
-
-    final bool? usePhoto = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        var isProcessing = false;
-        return StatefulBuilder(
-          builder: (BuildContext _, StateSetter setState) {
-            return AlertDialog(
-              title: const Text('사진 사용'),
-              content: Image.file(File(photo.path)),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: isProcessing
-                      ? null
-                      : () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('다시 찍기'),
-                ),
-                ElevatedButton(
-                  onPressed: isProcessing
-                      ? null
-                      : () {
-                          setState(() {
-                            isProcessing = true;
-                          });
-                          Navigator.of(dialogContext).pop(true);
-                        },
-                  child: const Text('이 사진 사용'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (usePhoto == true && mounted) {
-      final textController = TextEditingController();
-      final bool? shouldSave = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) {
-          var isSubmitting = false;
-          return StatefulBuilder(
-            builder: (BuildContext _, StateSetter setState) {
-              return AlertDialog(
-                title: const Text('AR 메모 저장'),
-                content: TextField(
-                  controller: textController,
-                  decoration: const InputDecoration(
-                    labelText: '메모 내용 (선택)',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: isSubmitting
-                        ? null
-                        : () => Navigator.of(dialogContext).pop(false),
-                    child: const Text('취소'),
-                  ),
-                  ElevatedButton(
-                    onPressed: isSubmitting
-                        ? null
-                        : () {
-                            setState(() {
-                              isSubmitting = true;
-                            });
-                            Navigator.of(dialogContext).pop(true);
-                          },
-                    child: const Text('저장'),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      );
-
-      final memoryText = textController.text.trim();
-      textController.dispose();
-
-      if (shouldSave != true) {
-        return;
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      final rootNavigator = Navigator.of(context, rootNavigator: true);
-      var progressShown = false;
-      void showProgressDialog() {
-        if (progressShown) return;
-        progressShown = true;
-        unawaited(showDialog<void>(
-          context: context,
-          barrierDismissible: false,
-          useRootNavigator: true,
-          builder: (_) => const Center(child: CircularProgressIndicator()),
-        ));
-      }
-
-      showProgressDialog();
-
-      var creationSucceeded = false;
-      Object? failureReason;
-
-      try {
-        LocationPermission permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
-        }
-
-        if (permission == LocationPermission.denied ||
-            permission == LocationPermission.deniedForever) {
-          throw Exception('위치 정보 권한이 거부되었습니다.');
-        }
-
-        final position = await Geolocator.getCurrentPosition();
-        final uploadRepository = ref.read(uploadRepositoryProvider);
-        final uploadResult = await uploadRepository.uploadPhoto(photo);
-
-        await ref.read(memoryCreatorProvider.notifier).createMemory(
-              latitude: position.latitude,
-              longitude: position.longitude,
-              text: memoryText.isEmpty ? null : memoryText,
-              photoUrl: uploadResult.url,
-            );
-        creationSucceeded = true;
-      } catch (e, stackTrace) {
-        failureReason = e;
-        debugPrint('AR 메모 저장 실패: $e\n$stackTrace');
-      } finally {
-        if (progressShown && rootNavigator.mounted) {
-          if (rootNavigator.canPop()) {
-            rootNavigator.pop();
-          }
-          progressShown = false;
-        }
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      if (creationSucceeded) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('새로운 AR 메모가 저장되었습니다.')),
-        );
-      } else if (failureReason != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('AR 메모 저장에 실패했습니다: $failureReason')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     ref.listen(tripRecordsProvider, (_, next) {
@@ -763,13 +675,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             label: '일기 쓰기',
             labelStyle: bodyText1.copyWith(color: textColor),
             onTap: () => _showCreateTripPopup(context, ref),
-          ),
-          SpeedDialChild(
-            child: const Icon(Icons.view_in_ar_outlined, color: primaryColor),
-            backgroundColor: Colors.white,
-            label: 'AR 기록',
-            labelStyle: bodyText1.copyWith(color: textColor),
-            onTap: _handleArRecordCreation,
           ),
         ],
       ),
@@ -1158,11 +1063,4 @@ class _TripRecordSlideCard extends StatelessWidget {
     );
   }
 
-}
-
-// Group 모델 (임시 - 실제 모델 import 필요)
-class Group {
-  final String id;
-  final String name;
-  Group({required this.id, required this.name});
 }
