@@ -42,7 +42,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             border: Border(top: BorderSide(color: Colors.grey[200]!, width: 0.5)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: Colors.black.withOpacity(0.05),
                 blurRadius: 8,
                 offset: const Offset(0, -2),
               ),

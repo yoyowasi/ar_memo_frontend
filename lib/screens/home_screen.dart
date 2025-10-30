@@ -13,8 +13,6 @@ import 'package:ar_memo_frontend/providers/upload_provider.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
-import 'package:ar_memo_frontend/theme/colors.dart';
-import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:ar_memo_frontend/widgets/trip_record_search_delegate.dart';
 
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
