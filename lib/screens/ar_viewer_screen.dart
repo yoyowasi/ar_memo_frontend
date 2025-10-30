@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:vector_math/vector_math_64.dart' as vector;
+import 'package:intl/intl.dart';
 
 import 'package:ar_memo_frontend/models/memory.dart';
 import 'package:ar_memo_frontend/providers/memory_provider.dart';
@@ -37,7 +38,12 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
   Position? _currentPosition;
   List<Memory> _latestMemories = [];
   List<Memory> _nearbyMemories = [];
+  int _selectedNearbyIndex = 0;
+  Memory? _selectedNearbyMemory;
   bool _isSyncingAnchors = false;
+  Memory? _previewMemory;
+  bool _previewVisible = false;
+  Timer? _previewDismissTimer;
 
   @override
   void initState() {
@@ -160,11 +166,13 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
             usesAnchor: shouldUseAnchor,
             fallbackPosition: fallbackPlacement?.position,
             fallbackRotation: fallbackPlacement?.rotation,
+            memoryId: memory.id,
           );
         }
 
         final idsToRemove = _placedContents.keys
-            .where((id) => !idsToKeep.contains(id))
+            .where((id) =>
+                !idsToKeep.contains(id) && !id.startsWith('tap_'))
             .toList(growable: false);
         for (final id in idsToRemove) {
           final content = _placedContents.remove(id);
@@ -184,7 +192,11 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
   void _refreshNearbyMemories() {
     final position = _currentPosition;
     if (position == null) {
-      setState(() => _nearbyMemories = []);
+      setState(() {
+        _nearbyMemories = [];
+        _selectedNearbyIndex = 0;
+        _selectedNearbyMemory = null;
+      });
       if (_placedContents.isNotEmpty) {
         unawaited(_syncAnchorsWithMemories());
       }
@@ -202,7 +214,18 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
     }).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    setState(() => _nearbyMemories = nearby);
+    setState(() {
+      _nearbyMemories = nearby;
+      if (nearby.isEmpty) {
+        _selectedNearbyIndex = 0;
+        _selectedNearbyMemory = null;
+      } else {
+        final clamped =
+            _selectedNearbyIndex.clamp(0, nearby.length - 1).toInt();
+        _selectedNearbyIndex = clamped;
+        _selectedNearbyMemory = nearby[clamped];
+      }
+    });
     unawaited(_syncAnchorsWithMemories());
   }
 
@@ -268,23 +291,155 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
     );
     await _arObjectManager?.onInitialize();
 
-    _arSessionManager?.onPlaneOrPointTap = (hits) async {
-      if (hits.isEmpty) return;
-      final hit = hits.first;
-      final anchor = ARPlaneAnchor(transformation: hit.worldTransform);
-      final didAddAnchor = await _arAnchorManager?.addAnchor(anchor) ?? false;
-      if (!didAddAnchor) return;
-
-      final node = ARNode(
-        type: NodeType.webGLB,
-        uri:
-            'https://github.com/KhronosGroup/glTF-Sample-Models/raw/master/2.0/Cube/glTF-Binary/Cube.glb',
-        scale: vector.Vector3.all(0.1),
-      );
-      await _arObjectManager?.addNode(node, planeAnchor: anchor);
-    };
+    _arSessionManager?.onPlaneOrPointTap = _handlePlaneTap;
 
     await _syncAnchorsWithMemories();
+  }
+
+  void _selectNextNearbyMemory() {
+    if (_nearbyMemories.isEmpty) {
+      return;
+    }
+    final nextIndex = (_selectedNearbyIndex + 1) % _nearbyMemories.length;
+    setState(() {
+      _selectedNearbyIndex = nextIndex;
+      _selectedNearbyMemory = _nearbyMemories[nextIndex];
+    });
+  }
+
+  Future<void> _handlePlaneTap(List<ARHitTestResult> hits) async {
+    if (hits.isEmpty) return;
+    final memory = _selectedNearbyMemory;
+    if (memory == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('근처에 표시할 추억이 없습니다.')),
+        );
+      }
+      return;
+    }
+
+    final anchorManager = _arAnchorManager;
+    final objectManager = _arObjectManager;
+    if (anchorManager == null || objectManager == null) {
+      return;
+    }
+
+    await _removeManualPlacements();
+
+    final hit = hits.first;
+    final anchor = ARPlaneAnchor(transformation: hit.worldTransform);
+    final didAddAnchor = await anchorManager.addAnchor(anchor);
+    if (!didAddAnchor) {
+      return;
+    }
+
+    final node = ARNode(
+      type: NodeType.localGLTF2,
+      uri: 'Models/frame.glb',
+      scale: vector.Vector3(0.45, 0.45, 0.45),
+    );
+
+    final didAddNode = await objectManager.addNode(node, planeAnchor: anchor);
+    if (!didAddNode) {
+      await anchorManager.removeAnchor(anchor);
+      return;
+    }
+
+    final manualId = 'tap_${DateTime.now().millisecondsSinceEpoch}';
+    _placedContents[manualId] = _PlacedContent(
+      anchor: anchor,
+      node: node,
+      usesAnchor: true,
+      memoryId: memory.id,
+    );
+
+    if (mounted) {
+      final snippet = memory.text?.trim();
+      final display = (snippet != null && snippet.isNotEmpty)
+          ? snippet.length > 40
+              ? '${snippet.substring(0, 37)}…'
+              : snippet
+          : null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            display != null
+                ? '선택한 추억을 벽에 배치했습니다: $display'
+                : '선택한 추억을 벽에 배치했습니다.',
+          ),
+        ),
+      );
+    }
+
+    _showPreviewForMemory(memory);
+  }
+
+  void _showPreviewForMemory(Memory memory) {
+    _previewDismissTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _previewMemory = memory;
+      _previewVisible = true;
+    });
+    _previewDismissTimer = Timer(const Duration(seconds: 6), () {
+      if (!mounted) return;
+      _hidePreview();
+    });
+  }
+
+  void _hidePreview({bool immediate = false}) {
+    _previewDismissTimer?.cancel();
+    if (!mounted) {
+      _previewMemory = null;
+      _previewVisible = false;
+      return;
+    }
+    if (immediate) {
+      setState(() {
+        _previewVisible = false;
+        _previewMemory = null;
+      });
+      return;
+    }
+    if (!_previewVisible) {
+      if (_previewMemory != null) {
+        setState(() => _previewMemory = null);
+      }
+      return;
+    }
+    setState(() {
+      _previewVisible = false;
+    });
+  }
+
+  void _handlePreviewFadeEnd() {
+    if (!mounted) return;
+    if (!_previewVisible && _previewMemory != null) {
+      setState(() {
+        _previewMemory = null;
+      });
+    }
+  }
+
+  Future<void> _removeManualPlacements() async {
+    if (_placedContents.isEmpty) return;
+    final manualIds = _placedContents.keys
+        .where((id) => id.startsWith('tap_'))
+        .toList(growable: false);
+    if (manualIds.isEmpty) return;
+
+    final anchorManager = _arAnchorManager;
+    final objectManager = _arObjectManager;
+    for (final id in manualIds) {
+      final content = _placedContents.remove(id);
+      if (content == null) continue;
+      await objectManager?.removeNode(content.node);
+      final anchor = content.anchor;
+      if (anchor != null) {
+        await anchorManager?.removeAnchor(anchor);
+      }
+    }
   }
 
   Widget _buildNearbyOverlay(AsyncValue<List<Memory>> memoriesAsync) {
@@ -307,37 +462,75 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
       );
     }
 
-    return SizedBox(
-      height: 92,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _nearbyMemories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, index) {
-          final memory = _nearbyMemories[index];
-          final imageUrl = memory.thumbUrl ?? memory.photoUrl;
-          return GestureDetector(
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${memory.createdAt.year}년 메모 선택: ${memory.id}')),
-              );
-            },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                width: 92,
-                height: 92,
-                color: Colors.white24,
-                child: imageUrl == null
-                    ? const Icon(Icons.image_not_supported, color: Colors.white)
-                    : Image.network(
-                        toAbsoluteUrl(imageUrl),
-                        fit: BoxFit.cover,
-                      ),
-              ),
+    final memory = _selectedNearbyMemory ?? _nearbyMemories.first;
+    final imageUrl = memory.thumbUrl ?? memory.photoUrl;
+    final title =
+        (memory.tags.isNotEmpty ? '#${memory.tags.first}' : 'AR 메모');
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 96, maxWidth: 360),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 72,
+              height: 72,
+              child: imageUrl == null
+                  ? const ColoredBox(
+                      color: Colors.black26,
+                      child: Icon(Icons.image_not_supported, color: Colors.white70),
+                    )
+                  : Image.network(
+                      toAbsoluteUrl(imageUrl),
+                      fit: BoxFit.cover,
+                    ),
             ),
-          );
-        },
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  DateFormat('yyyy.MM.dd').format(memory.createdAt),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+                if (memory.text?.isNotEmpty ?? false) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    memory.text!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _nearbyMemories.length < 2 ? null : _selectNextNearbyMemory,
+            color: Colors.white,
+            icon: const Icon(Icons.swap_horiz),
+          ),
+        ],
       ),
     );
   }
@@ -388,15 +581,22 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
               alignment: Alignment.topCenter,
               child: Container(
                 margin: const EdgeInsets.only(top: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.4),
-                  borderRadius: BorderRadius.circular(16),
-                ),
                 child: _buildNearbyOverlay(memoriesAsync),
               ),
             ),
           ),
+          if (_previewMemory != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 48,
+              child: _PlacedPreviewOverlay(
+                memory: _previewMemory!,
+                visible: _previewVisible,
+                onClose: () => _hidePreview(immediate: true),
+                onFadeEnd: _handlePreviewFadeEnd,
+              ),
+            ),
         ],
       ),
     );
@@ -416,8 +616,203 @@ class _ARViewerScreenState extends ConsumerState<ARViewerScreen> {
       }
       _placedContents.clear();
     }
+    _previewDismissTimer?.cancel();
     _arSessionManager?.dispose();
     super.dispose();
+  }
+}
+
+class _PlacedPreviewOverlay extends StatelessWidget {
+  const _PlacedPreviewOverlay({
+    required this.memory,
+    required this.visible,
+    required this.onClose,
+    required this.onFadeEnd,
+  });
+
+  final Memory memory;
+  final bool visible;
+  final VoidCallback onClose;
+  final VoidCallback onFadeEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = memory.photoUrl ?? memory.thumbUrl;
+    final transform = vector.Matrix4.identity()
+      ..setEntry(3, 2, 0.0016)
+      ..rotateX(-0.18)
+      ..rotateY(0.08);
+
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 220),
+        opacity: visible ? 1.0 : 0.0,
+        onEnd: onFadeEnd,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 220),
+          scale: visible ? 1.0 : 0.96,
+          curve: Curves.easeInOut,
+          child: Transform(
+            alignment: Alignment.center,
+            transform: transform,
+            child: GestureDetector(
+              onTap: onClose,
+              child: Container(
+                width: 260,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.35),
+                      blurRadius: 24,
+                      offset: const Offset(0, 18),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Stack(
+                    children: [
+                      AspectRatio(
+                        aspectRatio: 3 / 4,
+                        child: imageUrl != null
+                            ? Image.network(
+                                toAbsoluteUrl(imageUrl),
+                                fit: BoxFit.cover,
+                              )
+                            : Container(
+                                color: Colors.black12,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.image_not_supported_outlined,
+                                    color: Colors.white,
+                                    size: 42,
+                                  ),
+                                ),
+                              ),
+                      ),
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.45),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.all(6.0),
+                            child: Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(14, 18, 14, 16),
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Color.fromRGBO(0, 0, 0, 0.65),
+                              ],
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                DateFormat('yyyy.MM.dd HH:mm').format(memory.createdAt),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              if (memory.text?.isNotEmpty ?? false) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  memory.text!,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                              if (memory.tags.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: memory.tags.take(2).map((tag) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '#$tag',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: 14,
+                        top: 14,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            child: Text(
+                              'AR 미리보기',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -435,6 +830,7 @@ class _PlacedContent {
     required this.usesAnchor,
     this.fallbackPosition,
     this.fallbackRotation,
+    this.memoryId,
   });
 
   final ARPlaneAnchor? anchor;
@@ -442,4 +838,5 @@ class _PlacedContent {
   final bool usesAnchor;
   final vector.Vector3? fallbackPosition;
   final vector.Vector4? fallbackRotation;
+  final String? memoryId;
 }
