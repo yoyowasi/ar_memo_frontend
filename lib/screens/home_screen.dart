@@ -1,18 +1,19 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:ar_memo_frontend/models/group.dart';
 import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:flutter/material.dart';
 import 'package:ar_memo_frontend/utils/url_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:ar_memo_frontend/providers/group_provider.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:ar_memo_frontend/widgets/trip_record_search_delegate.dart';
-import 'dart:math';
 
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 import 'package:geolocator/geolocator.dart';
@@ -33,35 +34,49 @@ enum RecordSortOrder {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   KakaoMapController? _mapController;
-  final Random _random = Random();
 
   final Map<String, String> _markerInfoWindows = {};
   final Map<String, Poi> _pois = {};
+  final Map<String, LatLng> _fallbackPositions = {};
+  final Map<String, KImage> _photoMarkerIcons = {};
+  final Map<String, String> _photoMarkerIconSources = {};
   KImage? _poiIcon;
 
   String? _previouslySelectedMarkerId;
-  final Map<String, KImage> _photoMarkerIcons = {};
   LatLng? _currentMapCenter;
   late final PageController _recordPageController;
   late final ValueNotifier<int> _currentRecordPageNotifier;
+  late final DraggableScrollableController _sheetController;
+  ProviderSubscription<AsyncValue<List<TripRecord>>>? _tripRecordsSubscription;
   RecordSortOrder _sortOrder = RecordSortOrder.latest;
+  String? _selectedGroupId;
 
   @override
   void initState() {
     super.initState();
     _recordPageController = PageController(viewportFraction: 0.88);
     _currentRecordPageNotifier = ValueNotifier<int>(0);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        // onMapReady에서 마커 로딩
-      }
-    });
+    _sheetController = DraggableScrollableController();
+    _tripRecordsSubscription = ref.listen<AsyncValue<List<TripRecord>>>(
+      tripRecordsProvider,
+      (previous, next) {
+        next.whenData((records) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _syncMarkers(_applyFilters(records));
+            }
+          });
+        });
+      },
+    );
   }
 
   @override
   void dispose() {
+    _tripRecordsSubscription?.close();
     _recordPageController.dispose();
     _currentRecordPageNotifier.dispose();
+    _sheetController.dispose();
     super.dispose();
   }
 
@@ -79,6 +94,114 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         break;
     }
     return sorted;
+  }
+
+  List<TripRecord> _applyFilters(List<TripRecord> records) {
+    if (_selectedGroupId == null) {
+      return records;
+    }
+
+    if (_selectedGroupId!.isEmpty) {
+      return records
+          .where((record) =>
+              (record.group?.id ?? record.groupIdString)?.isEmpty ?? true)
+          .toList();
+    }
+
+    return records
+        .where((record) =>
+            (record.group?.id ?? record.groupIdString) == _selectedGroupId)
+        .toList();
+  }
+
+  LatLng _resolveRecordPosition(TripRecord record) {
+    if (record.latitude != null && record.longitude != null) {
+      return LatLng(record.latitude!, record.longitude!);
+    }
+
+    final cached = _fallbackPositions[record.id];
+    if (cached != null) {
+      return cached;
+    }
+
+    final hash = record.id.hashCode;
+    final latOffset = ((hash & 0xFFFF) / 0xFFFF - 0.5) * 0.02;
+    final lngOffset = (((hash >> 16) & 0xFFFF) / 0xFFFF - 0.5) * 0.02;
+    final fallback = LatLng(37.5665 + latOffset, 126.9780 + lngOffset);
+    _fallbackPositions[record.id] = fallback;
+    return fallback;
+  }
+
+  Future<void> _syncMarkers(List<TripRecord> records) async {
+    final controller = _mapController;
+    if (controller == null) return;
+
+    await _preparePoiIcon();
+    if (_poiIcon == null) return;
+
+    final style = PoiStyle(icon: _poiIcon!);
+    final newIds = records.map((record) => record.id).toSet();
+
+    for (final markerId in List<String>.from(_pois.keys)) {
+      if (!newIds.contains(markerId)) {
+        final poi = _pois.remove(markerId);
+        if (poi != null) {
+          await controller.labelLayer.removePoi(poi);
+        }
+        _markerInfoWindows.remove(markerId);
+        _photoMarkerIcons.remove(markerId);
+        _photoMarkerIconSources.remove(markerId);
+        _fallbackPositions.remove(markerId);
+        if (_previouslySelectedMarkerId == markerId) {
+          _previouslySelectedMarkerId = null;
+        }
+      }
+    }
+
+    for (final record in records) {
+      final markerId = record.id;
+      final position = _resolveRecordPosition(record);
+      var infoTitle = record.title;
+      if (record.latitude == null || record.longitude == null) {
+        infoTitle += ' (위치 없음)';
+      }
+
+      final existing = _pois[markerId];
+      final needsUpdate = existing == null ||
+          existing.position.latitude != position.latitude ||
+          existing.position.longitude != position.longitude ||
+          (_markerInfoWindows[markerId] ?? '') != infoTitle;
+
+      if (needsUpdate && existing != null) {
+        await controller.labelLayer.removePoi(existing);
+        _pois.remove(markerId);
+        _photoMarkerIcons.remove(markerId);
+      }
+
+      if (needsUpdate) {
+        final poi = await controller.labelLayer.addPoi(
+          position,
+          style: style,
+          id: markerId,
+          text: infoTitle,
+          onClick: () => _onMarkerTapped(markerId),
+        );
+        _pois[markerId] = poi;
+      }
+
+      _markerInfoWindows[markerId] = infoTitle;
+      if (record.photoUrls.isNotEmpty) {
+        final latestUrl = record.photoUrls.first;
+        final cachedIconSource = _photoMarkerIconSources[markerId];
+        if (cachedIconSource != null && cachedIconSource != latestUrl) {
+          _photoMarkerIcons.remove(markerId);
+          _photoMarkerIconSources.remove(markerId);
+        }
+      } else {
+        _photoMarkerIcons.remove(markerId);
+        _photoMarkerIconSources.remove(markerId);
+      }
+    }
   }
 
   String get _sortOrderLabel {
@@ -138,61 +261,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
   }
 
+  void _onGroupFilterChanged(String? groupId) {
+    if (_selectedGroupId == groupId) return;
+    setState(() {
+      _selectedGroupId = groupId;
+    });
+    final records = ref.read(tripRecordsProvider).asData?.value ?? [];
+    _syncMarkers(_applyFilters(records));
+  }
+
+  void _toggleSheetSize() {
+    final controller = _sheetController;
+    if (!controller.isAttached) return;
+    const expanded = 0.6;
+    const collapsed = 0.25;
+    final current = controller.size;
+    final target = current < expanded ? expanded : collapsed;
+    controller.animateTo(
+      target,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
   Future<void> _preparePoiIcon() async {
     if (_poiIcon != null) return;
     _poiIcon = await KImage.fromWidget(
       const Icon(Icons.place, size: 28),
       const Size(36, 36),
     );
-  }
-
-  Future<void> _clearAllPois() async {
-    final c = _mapController;
-    if (c == null) return;
-    await Future.wait(_pois.values.map((poi) => c.labelLayer.removePoi(poi)));
-    _pois.clear();
-    _markerInfoWindows.clear();
-    _previouslySelectedMarkerId = null;
-    _photoMarkerIcons.clear();
-  }
-
-  Future<void> _loadAndSetMarkersFromProvider(List<TripRecord> records) async {
-    final c = _mapController;
-    if (c == null) return;
-
-    await _clearAllPois();
-    await _preparePoiIcon();
-
-    final style = PoiStyle(icon: _poiIcon!);
-
-    for (final record in records) {
-      double lat, lng;
-      String infoTitle = record.title;
-
-      if (record.latitude != null && record.longitude != null) {
-        lat = record.latitude!;
-        lng = record.longitude!;
-      } else {
-        lat = 37.5665 + (_random.nextDouble() * 0.01 - 0.005);
-        lng = 126.9780 + (_random.nextDouble() * 0.01 - 0.005);
-        infoTitle += " (위치 없음)";
-      }
-
-      final markerId = record.id;
-      _markerInfoWindows[markerId] = infoTitle;
-
-      final poi = await c.labelLayer.addPoi(
-        LatLng(lat, lng),
-        style: style,
-        id: markerId,
-        text: infoTitle,
-        onClick: () => _onMarkerTapped(markerId),
-      );
-
-      _pois[markerId] = poi;
-    }
-
-    debugPrint("${(_pois.length)} pois prepared for map.");
   }
 
   Future<void> _onMarkerTapped(String recordId) async {
@@ -241,6 +338,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
 
     if (record.photoUrls.isNotEmpty) {
+      final latestUrl = record.photoUrls.first;
+      if (_photoMarkerIconSources[recordId] != latestUrl) {
+        _photoMarkerIcons.remove(recordId);
+      }
+
       KImage? photoIcon = _photoMarkerIcons[recordId];
 
       if (photoIcon == null) {
@@ -263,6 +365,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const Size(70, 70),
         );
         _photoMarkerIcons[recordId] = photoIcon;
+        _photoMarkerIconSources[recordId] = latestUrl;
       }
 
       final poiToUpdate = _pois[recordId];
@@ -278,6 +381,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         );
         _pois[poiToUpdate.id] = newPoi;
       }
+    }
+
+    if (record.photoUrls.isEmpty) {
+      _photoMarkerIcons.remove(recordId);
+      _photoMarkerIconSources.remove(recordId);
     }
 
     setState(() {
@@ -368,6 +476,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  Widget _buildGroupFilterChip({
+    required String label,
+    int? count,
+    required bool selected,
+    required VoidCallback onSelected,
+    Color? accentColor,
+  }) {
+    final displayLabel = count != null ? '$label ($count)' : label;
+    final chipColor = accentColor ?? primaryColor;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: ChoiceChip(
+        label: Text(displayLabel),
+        selected: selected,
+        onSelected: (_) => onSelected(),
+        labelStyle: bodyText2.copyWith(
+          color: selected ? chipColor : textColor,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+        ),
+        backgroundColor: Colors.white,
+        selectedColor: chipColor.withOpacity(0.16),
+        side: BorderSide(
+          color: selected ? chipColor : Colors.grey.shade300,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(999),
+        ),
+      ),
+    );
+  }
+
   Future<LatLng?> _latLngFromExifPath(String filePath) async {
     try {
       final exif = await Exif.fromPath(filePath);
@@ -391,6 +530,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     bool isLoading = false;
     double? tripLatitude;
     double? tripLongitude;
+    final groupsAsyncValue = ref.read(myGroupsProvider);
+    String? selectedGroupId;
 
     showDialog(
       context: context,
@@ -508,6 +649,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   title: titleController.text,
                   content: contentController.text,
                   date: selectedDate,
+                  groupId: selectedGroupId,
                   photoUrls: photoUrls,
                   latitude: tripLatitude,
                   longitude: tripLongitude,
@@ -620,6 +762,71 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    groupsAsyncValue.when(
+                      data: (groups) {
+                        if (groups.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return DropdownButtonFormField<String?>(
+                          value: selectedGroupId,
+                          decoration: InputDecoration(
+                            labelText: '그룹 (선택)',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                          ),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('그룹 선택 안함'),
+                            ),
+                            ...groups.map(
+                              (group) => DropdownMenuItem<String?>(
+                                value: group.id,
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 12,
+                                      height: 12,
+                                      margin: const EdgeInsets.only(right: 8),
+                                      decoration: BoxDecoration(
+                                        color: Color(group.colorValue),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        group.name,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) => setState(() {
+                            selectedGroupId = value;
+                          }),
+                        );
+                      },
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 4),
+                        child: LinearProgressIndicator(minHeight: 2),
+                      ),
+                      error: (err, _) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text(
+                          '그룹 정보를 불러오지 못했습니다. (${err.toString()})',
+                          style: bodyText2.copyWith(color: Colors.redAccent),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: contentController,
                       decoration: InputDecoration(
@@ -673,15 +880,72 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(tripRecordsProvider, (_, next) {
-      if (next is AsyncData<List<TripRecord>>) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _mapController != null) {
-            _loadAndSetMarkersFromProvider(next.value);
+    final groupsAsync = ref.watch(myGroupsProvider);
+    final tripRecordsAsync = ref.watch(tripRecordsProvider);
+
+    Widget buildGroupFilter() {
+      return groupsAsync.when(
+        data: (groups) {
+          final records = tripRecordsAsync.asData?.value ?? [];
+          if (records.isEmpty && groups.isEmpty) {
+            return const SizedBox.shrink();
           }
-        });
-      }
-    });
+
+          final Map<String, int> groupCounts = {};
+          int ungroupedCount = 0;
+          for (final record in records) {
+            final groupKey = record.group?.id ?? record.groupIdString;
+            if (groupKey == null || groupKey.isEmpty) {
+              ungroupedCount += 1;
+            } else {
+              groupCounts[groupKey] = (groupCounts[groupKey] ?? 0) + 1;
+            }
+          }
+
+          final chips = <Widget>[
+            _buildGroupFilterChip(
+              label: '전체',
+              count: records.length,
+              selected: _selectedGroupId == null,
+              onSelected: () => _onGroupFilterChanged(null),
+              accentColor: primaryColor,
+            ),
+          ];
+
+          if (ungroupedCount > 0) {
+            chips.add(
+              _buildGroupFilterChip(
+                label: '그룹 없음',
+                count: ungroupedCount,
+                selected: _selectedGroupId == '',
+                onSelected: () => _onGroupFilterChanged(''),
+                accentColor: Colors.grey,
+              ),
+            );
+          }
+
+          for (final group in groups) {
+            final count = groupCounts[group.id] ?? 0;
+            chips.add(
+              _buildGroupFilterChip(
+                label: group.name,
+                count: count > 0 ? count : null,
+                selected: _selectedGroupId == group.id,
+                onSelected: () => _onGroupFilterChanged(group.id),
+                accentColor: Color(group.colorValue),
+              ),
+            );
+          }
+
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: chips),
+          );
+        },
+        loading: () => const SizedBox.shrink(),
+        error: (_, __) => const SizedBox.shrink(),
+      );
+    }
 
     return Scaffold(
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -702,7 +966,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               await _moveToCurrentUserLocation();
               final records = ref.read(tripRecordsProvider).asData?.value;
               if (records != null) {
-                _loadAndSetMarkersFromProvider(records);
+                await _syncMarkers(_applyFilters(records));
               }
             },
             option: const KakaoMapOption(
@@ -715,46 +979,54 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          )
-                        ],
-                      ),
-                      child: TextField(
-                        readOnly: true,
-                        onTap: _openSearch,
-                        decoration: const InputDecoration(
-                          prefixIcon:
-                              Icon(Icons.search, color: subTextColor),
-                          hintText: '장소, 기록 검색...',
-                          hintStyle: TextStyle(color: subTextColor),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(vertical: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              )
+                            ],
+                          ),
+                          child: TextField(
+                            readOnly: true,
+                            onTap: _openSearch,
+                            decoration: const InputDecoration(
+                              prefixIcon:
+                                  Icon(Icons.search, color: subTextColor),
+                              hintText: '장소, 기록 검색...',
+                              hintStyle: TextStyle(color: subTextColor),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 10),
+                      FloatingActionButton(
+                        onPressed: () async {
+                          await _moveToCurrentUserLocation();
+                          await _refreshCenter();
+                        },
+                        mini: true,
+                        backgroundColor: Colors.white,
+                        elevation: 2,
+                        child: const Icon(Icons.my_location, color: primaryColor),
+                      )
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  FloatingActionButton(
-                    onPressed: () async {
-                      await _moveToCurrentUserLocation();
-                      await _refreshCenter();
-                    },
-                    mini: true,
-                    backgroundColor: Colors.white,
-                    elevation: 2,
-                    child: const Icon(Icons.my_location, color: primaryColor),
-                  )
+                  const SizedBox(height: 12),
+                  buildGroupFilter(),
                 ],
               ),
             ),
@@ -762,11 +1034,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
           // 하단 슬라이딩 패널
           DraggableScrollableSheet(
+            controller: _sheetController,
             initialChildSize: 0.3,
             minChildSize: 0.15,
             maxChildSize: 0.8,
             builder: (BuildContext context, ScrollController scrollController) {
-              final recordsAsync = ref.watch(tripRecordsProvider);
               return Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -786,13 +1058,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Column(
                   children: [
                     // 핸들 UI
-                    Container(
-                      width: 50,
-                      height: 5,
-                      margin: const EdgeInsets.symmetric(vertical: 12.0),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(10),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _toggleSheetSize,
+                      child: Container(
+                        width: 50,
+                        height: 5,
+                        margin: const EdgeInsets.symmetric(vertical: 12.0),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
                     // "나의 기록" 타이틀 및 정렬 버튼
@@ -818,9 +1094,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     const SizedBox(height: 12),
                     // 기록 목록 또는 빈 상태 UI
                     Expanded(
-                      child: recordsAsync.when(
+                      child: tripRecordsAsync.when(
                         data: (records) {
-                          if (records.isEmpty) {
+                          final filteredRecords = _applyFilters(records);
+                          if (filteredRecords.isEmpty) {
+                            final emptyMessage = _selectedGroupId == null
+                                ? '기록된 추억이 없습니다.'
+                                : '선택한 그룹에 기록이 없습니다.';
+                            final emptySubMessage = _selectedGroupId == null
+                                ? '지도에 나만의 기록을 추가해보세요.'
+                                : '다른 그룹을 선택하거나 새로운 기록을 추가해보세요.';
                             return Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -828,17 +1111,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   Icon(Icons.map_outlined,
                                       size: 48, color: Colors.grey[400]),
                                   const SizedBox(height: 16),
-                                  const Text("기록된 추억이 없습니다.",
-                                      style: bodyText1),
+                                  Text(emptyMessage, style: bodyText1),
                                   const SizedBox(height: 4),
-                                  const Text("지도에 나만의 기록을 추가해보세요.",
-                                      style: bodyText2),
+                                  Text(emptySubMessage, style: bodyText2),
                                 ],
                               ),
                             );
                           }
 
-                          final sortedRecords = _sortRecords(records);
+                          final sortedRecords = _sortRecords(filteredRecords);
 
                           final currentIndex = _currentRecordPageNotifier.value;
                           final clampedIndex = currentIndex.clamp(0, sortedRecords.length - 1).toInt();

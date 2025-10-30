@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:ar_memo_frontend/models/trip_record.dart';
+import 'package:ar_memo_frontend/providers/group_provider.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
@@ -37,6 +38,7 @@ class _CreateTripRecordScreenState
   DateTime? _selectedDate;
   bool _isLoading = false; // 저장 로딩 상태
   bool _isUploading = false; // 이미지 업로드 로딩 상태
+  String? _selectedGroupId;
 
   final List<String> _photoUrls = []; // 최종 서버 URL 목록 (기존 + 신규)
   final List<XFile> _localFiles = []; // 새로 추가한 로컬 파일 목록
@@ -54,11 +56,16 @@ class _CreateTripRecordScreenState
       _contentController.text = record.content;
       _selectedDate = record.date;
       _photoUrls.addAll(record.photoUrls); // 기존 이미지 URL 로드
+      _selectedGroupId = record.group?.id ?? record.groupIdString;
+      if (_selectedGroupId != null && _selectedGroupId!.isEmpty) {
+        _selectedGroupId = null;
+      }
     } else {
       _selectedDate = DateTime.now(); // 생성 모드는 오늘 날짜
       if (widget.initialPhotoUrls != null) {
         _photoUrls.addAll(widget.initialPhotoUrls!);
       }
+      _selectedGroupId = null;
     }
   }
 
@@ -134,6 +141,7 @@ class _CreateTripRecordScreenState
             title: _titleController.text,
             content: _contentController.text,
             date: _selectedDate!,
+            groupId: _selectedGroupId,
             photoUrls: finalPhotoUrls,
             latitude: currentLat, // 현재는 기존 위치 유지 (수정 기능 필요 시 추가)
             longitude: currentLng,
@@ -145,6 +153,7 @@ class _CreateTripRecordScreenState
             title: _titleController.text,
             content: _contentController.text,
             date: _selectedDate!,
+            groupId: _selectedGroupId,
             photoUrls: _photoUrls,
             latitude: currentLat,
             longitude: currentLng,
@@ -277,6 +286,7 @@ class _CreateTripRecordScreenState
 
   @override
   Widget build(BuildContext context) {
+    final groupsAsync = ref.watch(myGroupsProvider);
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditMode ? '일기 수정' : '일기 쓰기', style: heading2),
@@ -315,7 +325,77 @@ class _CreateTripRecordScreenState
                   const Icon(Icons.calendar_today_outlined, color: subTextColor, size: 20),
                 ],),),
             ),
-            const SizedBox(height: 16),
+            groupsAsync.when(
+              data: (groups) {
+                if (groups.isEmpty) {
+                  return const SizedBox(height: 16);
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String?>(
+                      value: _selectedGroupId,
+                      decoration: InputDecoration(
+                        labelText: '그룹 (선택)',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('그룹 선택 안함'),
+                        ),
+                        ...groups.map(
+                          (group) => DropdownMenuItem<String?>(
+                            value: group.id,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 12,
+                                  height: 12,
+                                  margin: const EdgeInsets.only(right: 8),
+                                  decoration: BoxDecoration(
+                                    color: Color(group.colorValue),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    group.name,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(() => _selectedGroupId = value);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                );
+              },
+              loading: () => const Padding(
+                padding: EdgeInsets.only(top: 16),
+                child: LinearProgressIndicator(minHeight: 2),
+              ),
+              error: (err, _) => Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Text(
+                  '그룹 정보를 불러오지 못했습니다. (${err.toString()})',
+                  style: bodyText2.copyWith(color: Colors.redAccent),
+                ),
+              ),
+            ),
             // 내용
             TextFormField(controller: _contentController, style: bodyText1, decoration: InputDecoration(hintText: '내용을 입력하세요', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: borderColor)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: borderColor)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: primaryColor, width: 1.5)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), alignLabelWithHint: true), maxLines: 8),
             const SizedBox(height: 32),

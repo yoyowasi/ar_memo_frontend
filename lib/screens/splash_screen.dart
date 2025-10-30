@@ -31,7 +31,7 @@ class _SplashScreenState extends State<SplashScreen> {
       backgroundColor: Color(0xFF8D7BFD), // primaryColor
       body: Center(
         child: Text(
-          '여행 메모',
+          'PlaceNote',
           style: TextStyle(
             fontSize: 48,
             fontWeight: FontWeight.bold,

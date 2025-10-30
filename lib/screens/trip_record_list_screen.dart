@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:ar_memo_frontend/models/trip_record.dart';
+import 'package:ar_memo_frontend/providers/group_provider.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
@@ -36,6 +37,8 @@ class TripRecordListScreen extends ConsumerWidget {
     double? tripLongitude;
     bool isUploading = false;
     bool isLoading = false;
+    final groupsAsyncValue = ref.read(myGroupsProvider);
+    String? selectedGroupId;
 
     Future<({double lat, double lng})?> readLatLngFromExif(XFile file) async {
       try {
@@ -165,13 +168,14 @@ class TripRecordListScreen extends ConsumerWidget {
 
               try {
                 await ref.read(tripRecordsProvider.notifier).addTripRecord(
-                      title: titleController.text,
-                      content: contentController.text,
-                      date: selectedDate!,
-                      photoUrls: photoUrls,
-                      latitude: currentLat,
-                      longitude: currentLng,
-                    );
+                  title: titleController.text,
+                  content: contentController.text,
+                  date: selectedDate!,
+                  groupId: selectedGroupId,
+                  photoUrls: photoUrls,
+                  latitude: currentLat,
+                  longitude: currentLng,
+                );
                 Navigator.pop(dialogContext);
                 ScaffoldMessenger.of(context)
                     .showSnackBar(const SnackBar(content: Text('일기가 저장되었습니다.')));
@@ -334,6 +338,71 @@ class TripRecordListScreen extends ConsumerWidget {
                               color: subTextColor,
                             ),
                           ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    groupsAsyncValue.when(
+                      data: (groups) {
+                        if (groups.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return DropdownButtonFormField<String?>(
+                          value: selectedGroupId,
+                          decoration: InputDecoration(
+                            labelText: '그룹 (선택)',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                          ),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('그룹 선택 안함'),
+                            ),
+                            ...groups.map(
+                              (group) => DropdownMenuItem<String?>(
+                                value: group.id,
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 12,
+                                      height: 12,
+                                      margin: const EdgeInsets.only(right: 8),
+                                      decoration: BoxDecoration(
+                                        color: Color(group.colorValue),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        group.name,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            setState(() => selectedGroupId = value);
+                          },
+                        );
+                      },
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 4),
+                        child: LinearProgressIndicator(minHeight: 2),
+                      ),
+                      error: (err, _) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text(
+                          '그룹 정보를 불러오지 못했습니다. (${err.toString()})',
+                          style: bodyText2.copyWith(color: Colors.redAccent),
                         ),
                       ),
                     ),

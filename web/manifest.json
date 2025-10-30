@@ -1,6 +1,6 @@
 {
-    "name": "ar_memo_frontend",
-    "short_name": "ar_memo_frontend",
+    "name": "PlaceNote",
+    "short_name": "PlaceNote",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
