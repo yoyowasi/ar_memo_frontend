@@ -4,12 +4,10 @@ import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:flutter/material.dart';
 import 'package:ar_memo_frontend/utils/url_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
-import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
@@ -26,6 +24,12 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
+enum RecordSortOrder {
+  latest,
+  oldest,
+  title,
+}
+
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   KakaoMapController? _mapController;
   final Random _random = Random();
@@ -38,12 +42,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final Map<String, KImage> _photoMarkerIcons = {};
   LatLng? _currentMapCenter;
   late final PageController _recordPageController;
-  int _currentRecordPage = 0;
+  late final ValueNotifier<int> _currentRecordPageNotifier;
+  RecordSortOrder _sortOrder = RecordSortOrder.latest;
 
   @override
   void initState() {
     super.initState();
     _recordPageController = PageController(viewportFraction: 0.88);
+    _currentRecordPageNotifier = ValueNotifier<int>(0);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         // onMapReady에서 마커 로딩
@@ -54,7 +60,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void dispose() {
     _recordPageController.dispose();
+    _currentRecordPageNotifier.dispose();
     super.dispose();
+  }
+
+  List<TripRecord> _sortRecords(List<TripRecord> records) {
+    final sorted = List<TripRecord>.from(records);
+    switch (_sortOrder) {
+      case RecordSortOrder.latest:
+        sorted.sort((a, b) => b.date.compareTo(a.date));
+        break;
+      case RecordSortOrder.oldest:
+        sorted.sort((a, b) => a.date.compareTo(b.date));
+        break;
+      case RecordSortOrder.title:
+        sorted.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        break;
+    }
+    return sorted;
+  }
+
+  String get _sortOrderLabel {
+    switch (_sortOrder) {
+      case RecordSortOrder.latest:
+        return '최신순';
+      case RecordSortOrder.oldest:
+        return '오래된순';
+      case RecordSortOrder.title:
+        return '제목순';
+    }
+  }
+
+  Future<void> _showSortBottomSheet() async {
+    final selected = await showModalBottomSheet<RecordSortOrder>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('최신순'),
+                trailing: _sortOrder == RecordSortOrder.latest
+                    ? const Icon(Icons.check, color: primaryColor)
+                    : null,
+                onTap: () => Navigator.of(context).pop(RecordSortOrder.latest),
+              ),
+              ListTile(
+                title: const Text('오래된순'),
+                trailing: _sortOrder == RecordSortOrder.oldest
+                    ? const Icon(Icons.check, color: primaryColor)
+                    : null,
+                onTap: () => Navigator.of(context).pop(RecordSortOrder.oldest),
+              ),
+              ListTile(
+                title: const Text('제목순'),
+                trailing: _sortOrder == RecordSortOrder.title
+                    ? const Icon(Icons.check, color: primaryColor)
+                    : null,
+                onTap: () => Navigator.of(context).pop(RecordSortOrder.title),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || selected == null || selected == _sortOrder) return;
+
+    setState(() {
+      _sortOrder = selected;
+      _currentRecordPageNotifier.value = 0;
+      if (_recordPageController.hasClients) {
+        _recordPageController.jumpToPage(0);
+      }
+    });
   }
 
   Future<void> _preparePoiIcon() async {
@@ -571,168 +651,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Future<void> _handleArRecordCreation() async {
-    final picker = ImagePicker();
-    final XFile? photo = await picker.pickImage(source: ImageSource.camera);
-
-    if (photo == null || !mounted) return;
-
-    final bool? usePhoto = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        var isProcessing = false;
-        return StatefulBuilder(
-          builder: (BuildContext _, StateSetter setState) {
-            return AlertDialog(
-              title: const Text('사진 사용'),
-              content: Image.file(File(photo.path)),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: isProcessing
-                      ? null
-                      : () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('다시 찍기'),
-                ),
-                ElevatedButton(
-                  onPressed: isProcessing
-                      ? null
-                      : () {
-                          setState(() {
-                            isProcessing = true;
-                          });
-                          Navigator.of(dialogContext).pop(true);
-                        },
-                  child: const Text('이 사진 사용'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (usePhoto == true && mounted) {
-      final textController = TextEditingController();
-      final bool? shouldSave = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) {
-          var isSubmitting = false;
-          return StatefulBuilder(
-            builder: (BuildContext _, StateSetter setState) {
-              return AlertDialog(
-                title: const Text('AR 메모 저장'),
-                content: TextField(
-                  controller: textController,
-                  decoration: const InputDecoration(
-                    labelText: '메모 내용 (선택)',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: isSubmitting
-                        ? null
-                        : () => Navigator.of(dialogContext).pop(false),
-                    child: const Text('취소'),
-                  ),
-                  ElevatedButton(
-                    onPressed: isSubmitting
-                        ? null
-                        : () {
-                            setState(() {
-                              isSubmitting = true;
-                            });
-                            Navigator.of(dialogContext).pop(true);
-                          },
-                    child: const Text('저장'),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      );
-
-      final memoryText = textController.text.trim();
-      textController.dispose();
-
-      if (shouldSave != true) {
-        return;
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      final rootNavigator = Navigator.of(context, rootNavigator: true);
-      var progressShown = false;
-      void showProgressDialog() {
-        if (progressShown) return;
-        progressShown = true;
-        unawaited(showDialog<void>(
-          context: context,
-          barrierDismissible: false,
-          useRootNavigator: true,
-          builder: (_) => const Center(child: CircularProgressIndicator()),
-        ));
-      }
-
-      showProgressDialog();
-
-      var creationSucceeded = false;
-      Object? failureReason;
-
-      try {
-        LocationPermission permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
-        }
-
-        if (permission == LocationPermission.denied ||
-            permission == LocationPermission.deniedForever) {
-          throw Exception('위치 정보 권한이 거부되었습니다.');
-        }
-
-        final position = await Geolocator.getCurrentPosition();
-        final uploadRepository = ref.read(uploadRepositoryProvider);
-        final uploadResult = await uploadRepository.uploadPhoto(photo);
-
-        await ref.read(memoryCreatorProvider.notifier).createMemory(
-              latitude: position.latitude,
-              longitude: position.longitude,
-              text: memoryText.isEmpty ? null : memoryText,
-              photoUrl: uploadResult.url,
-            );
-        creationSucceeded = true;
-      } catch (e, stackTrace) {
-        failureReason = e;
-        debugPrint('AR 메모 저장 실패: $e\n$stackTrace');
-      } finally {
-        if (progressShown && rootNavigator.mounted) {
-          if (rootNavigator.canPop()) {
-            rootNavigator.pop();
-          }
-          progressShown = false;
-        }
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      if (creationSucceeded) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('새로운 AR 메모가 저장되었습니다.')),
-        );
-      } else if (failureReason != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('AR 메모 저장에 실패했습니다: $failureReason')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     ref.listen(tripRecordsProvider, (_, next) {
@@ -747,31 +665,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: SpeedDial(
-        icon: Icons.add,
-        activeIcon: Icons.close,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showCreateTripPopup(context, ref),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
-        overlayColor: Colors.black,
-        overlayOpacity: 0.4,
-        spacing: 12,
-        childrenButtonSize: const Size(56.0, 56.0),
-        children: [
-          SpeedDialChild(
-            child: const Icon(Icons.article_outlined, color: primaryColor),
-            backgroundColor: Colors.white,
-            label: '일기 쓰기',
-            labelStyle: bodyText1.copyWith(color: textColor),
-            onTap: () => _showCreateTripPopup(context, ref),
-          ),
-          SpeedDialChild(
-            child: const Icon(Icons.view_in_ar_outlined, color: primaryColor),
-            backgroundColor: Colors.white,
-            label: 'AR 기록',
-            labelStyle: bodyText1.copyWith(color: textColor),
-            onTap: _handleArRecordCreation,
-          ),
-        ],
+        icon: const Icon(Icons.edit_outlined),
+        label: const Text('일기 쓰기'),
       ),
       body: Stack(
         children: [
@@ -882,11 +781,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         children: [
                           const Text('나의 기록', style: heading2),
                           InkWell(
-                            onTap: () {},
-                            child: const Row(
+                            onTap: _showSortBottomSheet,
+                            child: Row(
                               children: [
-                                Text('최신순', style: bodyText2),
-                                Icon(Icons.arrow_drop_down,
+                                Text(_sortOrderLabel, style: bodyText2),
+                                const Icon(Icons.arrow_drop_down,
                                     color: subTextColor),
                               ],
                             ),
@@ -917,16 +816,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             );
                           }
 
-                          final clampedIndex = _currentRecordPage.clamp(0, records.length - 1);
-                          if (clampedIndex != _currentRecordPage) {
+                          final sortedRecords = _sortRecords(records);
+
+                          final currentIndex = _currentRecordPageNotifier.value;
+                          final clampedIndex = currentIndex.clamp(0, sortedRecords.length - 1).toInt();
+                          if (clampedIndex != currentIndex) {
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               if (!mounted) return;
                               if (_recordPageController.hasClients) {
                                 _recordPageController.jumpToPage(clampedIndex);
                               }
-                              setState(() {
-                                _currentRecordPage = clampedIndex;
-                              });
+                              _currentRecordPageNotifier.value = clampedIndex;
                             });
                           }
 
@@ -939,17 +839,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 height: 320,
                                 child: PageView.builder(
                                   controller: _recordPageController,
-                                  itemCount: records.length,
+                                  itemCount: sortedRecords.length,
                                   onPageChanged: (index) {
-                                    setState(() {
-                                      _currentRecordPage = index;
-                                    });
+                                    _currentRecordPageNotifier.value = index;
                                   },
                                   itemBuilder: (context, index) {
-                                    final record = records[index];
+                                    final record = sortedRecords[index];
                                     final horizontalPadding = index == 0
                                         ? 24.0
-                                        : index == records.length - 1
+                                        : index == sortedRecords.length - 1
                                             ? 24.0
                                             : 12.0;
                                     return Padding(
@@ -965,23 +863,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: List.generate(records.length, (index) {
-                                  final isActive = index == _currentRecordPage;
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 250),
-                                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                                    height: 8,
-                                    width: isActive ? 18 : 8,
-                                    decoration: BoxDecoration(
-                                      color: isActive
-                                          ? primaryColor
-                                          : Colors.grey.shade300,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
+                              ValueListenableBuilder<int>(
+                                valueListenable: _currentRecordPageNotifier,
+                                builder: (_, currentPage, __) {
+                                  final safePage = sortedRecords.isEmpty
+                                      ? 0
+                                      : currentPage.clamp(0, sortedRecords.length - 1).toInt();
+                                  return Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: List.generate(sortedRecords.length, (index) {
+                                      final isActive = index == safePage;
+                                      return AnimatedContainer(
+                                        duration: const Duration(milliseconds: 250),
+                                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                                        height: 8,
+                                        width: isActive ? 18 : 8,
+                                        decoration: BoxDecoration(
+                                          color: isActive
+                                              ? primaryColor
+                                              : Colors.grey.shade300,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      );
+                                    }),
                                   );
-                                }),
+                                },
                               ),
                               const SizedBox(height: 12),
                             ],

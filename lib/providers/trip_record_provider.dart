@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:ar_memo_frontend/providers/api_service_provider.dart';
+import 'package:ar_memo_frontend/providers/memory_provider.dart';
 import 'package:ar_memo_frontend/repositories/trip_record_repository.dart';
 
 part 'trip_record_provider.g.dart';
@@ -41,6 +42,7 @@ class TripRecords extends _$TripRecords {
         longitude: longitude,
       );
       ref.invalidateSelf();
+      ref.invalidate(memorySummaryProvider);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       rethrow;
@@ -71,6 +73,7 @@ class TripRecords extends _$TripRecords {
       );
       ref.invalidateSelf();
       ref.invalidate(tripRecordDetailProvider(id));
+      ref.invalidate(memorySummaryProvider);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       rethrow;
@@ -83,6 +86,7 @@ class TripRecords extends _$TripRecords {
       await repository.deleteTripRecord(id);
       ref.invalidateSelf();
       ref.invalidate(tripRecordDetailProvider(id));
+      ref.invalidate(memorySummaryProvider);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       rethrow;

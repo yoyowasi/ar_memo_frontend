@@ -12,6 +12,12 @@ import 'dart:io';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
 import 'package:ar_memo_frontend/models/trip_record.dart';
 
+enum TripRecordFilter {
+  all,
+  withPhotos,
+  withGroup,
+}
+
 class TripRecordListScreen extends ConsumerWidget {
   const TripRecordListScreen({super.key});
 
@@ -116,6 +122,135 @@ class TripRecordListScreen extends ConsumerWidget {
   }
   // --- 팝업 로직 끝 ---
 
+  List<TripRecord> _applyFilter(List<TripRecord> records, TripRecordFilter filter) {
+    switch (filter) {
+      case TripRecordFilter.all:
+        return records;
+      case TripRecordFilter.withPhotos:
+        return records.where((record) => record.photoUrls.isNotEmpty).toList();
+      case TripRecordFilter.withGroup:
+        return records
+            .where((record) =>
+                record.group != null ||
+                (record.groupIdString != null &&
+                    record.groupIdString!.isNotEmpty))
+            .toList();
+    }
+  }
+
+  Future<void> _openSearch(BuildContext context, WidgetRef ref) async {
+    final records = ref.read(tripRecordsProvider).asData?.value ?? [];
+    if (records.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('검색할 일기가 없습니다.')),
+      );
+      return;
+    }
+
+    final selected = await showSearch<TripRecord?>(
+      context: context,
+      delegate: TripRecordSearchDelegate(records),
+    );
+
+    if (selected != null && context.mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TripRecordDetailScreen(recordId: selected.id),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openFilter(BuildContext context, WidgetRef ref) async {
+    final records = ref.read(tripRecordsProvider).asData?.value ?? [];
+    if (records.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('필터링할 일기가 없습니다.')),
+      );
+      return;
+    }
+
+    final filter = await showModalBottomSheet<TripRecordFilter>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.all_inclusive),
+                title: const Text('전체 보기'),
+                onTap: () => Navigator.of(ctx).pop(TripRecordFilter.all),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('사진이 있는 일기'),
+                onTap: () => Navigator.of(ctx).pop(TripRecordFilter.withPhotos),
+              ),
+              ListTile(
+                leading: const Icon(Icons.group_outlined),
+                title: const Text('그룹에 공유된 일기'),
+                onTap: () => Navigator.of(ctx).pop(TripRecordFilter.withGroup),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (filter == null) return;
+
+    final filtered = _applyFilter(records, filter);
+    if (filtered.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('조건에 맞는 일기가 없습니다.')),
+        );
+      }
+      return;
+    }
+
+    if (!context.mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16.0),
+            itemCount: filtered.length,
+            separatorBuilder: (_, __) => const Divider(),
+            itemBuilder: (context, index) {
+              final record = filtered[index];
+              return ListTile(
+                leading: const Icon(Icons.article_outlined),
+                title: Text(record.title, style: bodyText1),
+                subtitle: Text(
+                  DateFormat('yyyy.MM.dd').format(record.date),
+                  style: bodyText2,
+                ),
+                trailing: record.photoUrls.isNotEmpty
+                    ? const Icon(Icons.photo, color: primaryColor)
+                    : null,
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          TripRecordDetailScreen(recordId: record.id),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -132,8 +267,16 @@ class TripRecordListScreen extends ConsumerWidget {
             child: Container(color: borderColor, height: 1.0)
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.search, color: textColor), tooltip: '검색', onPressed: () { /* TODO: 검색 */ }),
-          IconButton(icon: const Icon(Icons.filter_list, color: textColor), tooltip: '필터', onPressed: () { /* TODO: 필터 */ }),
+          IconButton(
+            icon: const Icon(Icons.search, color: textColor),
+            tooltip: '검색',
+            onPressed: () => _openSearch(context, ref),
+          ),
+          IconButton(
+            icon: const Icon(Icons.filter_list, color: textColor),
+            tooltip: '필터',
+            onPressed: () => _openFilter(context, ref),
+          ),
         ],
       ),
       body: tripRecordsAsyncValue.when(
@@ -216,6 +359,66 @@ class TripRecordListScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('일기 목록 로딩 오류: $err')),
       ),
+    );
+  }
+}
+
+class TripRecordSearchDelegate extends SearchDelegate<TripRecord?> {
+  TripRecordSearchDelegate(this.records);
+
+  final List<TripRecord> records;
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    if (query.isEmpty) return null;
+    return [
+      IconButton(
+        icon: const Icon(Icons.clear),
+        onPressed: () => query = '',
+      ),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () => close(context, null),
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) => _buildResultList();
+
+  @override
+  Widget buildSuggestions(BuildContext context) => _buildResultList();
+
+  Widget _buildResultList() {
+    final lowerQuery = query.toLowerCase();
+    final filtered = lowerQuery.isEmpty
+        ? records
+        : records.where((record) {
+            final inTitle = record.title.toLowerCase().contains(lowerQuery);
+            final inContent = record.content.toLowerCase().contains(lowerQuery);
+            final inGroup = record.group?.name.toLowerCase().contains(lowerQuery) ?? false;
+            return inTitle || inContent || inGroup;
+          }).toList();
+
+    if (filtered.isEmpty) {
+      return const Center(child: Text('일치하는 일기가 없습니다.'));
+    }
+
+    return ListView.builder(
+      itemCount: filtered.length,
+      itemBuilder: (context, index) {
+        final record = filtered[index];
+        return ListTile(
+          leading: const Icon(Icons.article_outlined),
+          title: Text(record.title),
+          subtitle: Text(DateFormat('yyyy.MM.dd').format(record.date)),
+          onTap: () => close(context, record),
+        );
+      },
     );
   }
 }
