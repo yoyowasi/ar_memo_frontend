@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:ar_memo_frontend/models/group.dart';
+
 import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:flutter/material.dart';
 import 'package:ar_memo_frontend/utils/url_utils.dart';
@@ -11,6 +11,8 @@ import 'package:ar_memo_frontend/providers/group_provider.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
+import 'package:ar_memo_frontend/theme/colors.dart';
+import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:ar_memo_frontend/widgets/trip_record_search_delegate.dart';
@@ -48,6 +50,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   late final ValueNotifier<int> _currentRecordPageNotifier;
   late final DraggableScrollableController _sheetController;
   ProviderSubscription<AsyncValue<List<TripRecord>>>? _tripRecordsSubscription;
+
   RecordSortOrder _sortOrder = RecordSortOrder.latest;
   String? _selectedGroupId;
 
@@ -57,18 +60,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _recordPageController = PageController(viewportFraction: 0.88);
     _currentRecordPageNotifier = ValueNotifier<int>(0);
     _sheetController = DraggableScrollableController();
-    _tripRecordsSubscription = ref.listen<AsyncValue<List<TripRecord>>>(
-      tripRecordsProvider,
-      (previous, next) {
-        next.whenData((records) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _syncMarkers(_applyFilters(records));
-            }
-          });
-        });
-      },
-    );
+    try {
+      _tripRecordsSubscription = ref.listenManual<AsyncValue<List<TripRecord>>>(
+        tripRecordsProvider,
+        (previous, next) {
+          // debugPrint('Trip records changed: $next'); // Removed temporary debugPrint
+          // if (next.hasError) {
+          //   debugPrint('Trip records provider error: ${next.error}'); // Removed temporary debugPrint
+          // }
+        },
+      );
+    } catch (e) {
+      debugPrint('Error setting up tripRecordsSubscription: $e');
+    }
   }
 
   @override
@@ -880,283 +884,197 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final groupsAsync = ref.watch(myGroupsProvider);
-    final tripRecordsAsync = ref.watch(tripRecordsProvider);
-
-    Widget buildGroupFilter() {
-      return groupsAsync.when(
-        data: (groups) {
-          final records = tripRecordsAsync.asData?.value ?? [];
-          if (records.isEmpty && groups.isEmpty) {
-            return const SizedBox.shrink();
-          }
-
-          final Map<String, int> groupCounts = {};
-          int ungroupedCount = 0;
-          for (final record in records) {
-            final groupKey = record.group?.id ?? record.groupIdString;
-            if (groupKey == null || groupKey.isEmpty) {
-              ungroupedCount += 1;
-            } else {
-              groupCounts[groupKey] = (groupCounts[groupKey] ?? 0) + 1;
-            }
-          }
-
-          final chips = <Widget>[
-            _buildGroupFilterChip(
-              label: '전체',
-              count: records.length,
-              selected: _selectedGroupId == null,
-              onSelected: () => _onGroupFilterChanged(null),
-              accentColor: primaryColor,
-            ),
-          ];
-
-          if (ungroupedCount > 0) {
-            chips.add(
-              _buildGroupFilterChip(
-                label: '그룹 없음',
-                count: ungroupedCount,
-                selected: _selectedGroupId == '',
-                onSelected: () => _onGroupFilterChanged(''),
-                accentColor: Colors.grey,
-              ),
-            );
-          }
-
-          for (final group in groups) {
-            final count = groupCounts[group.id] ?? 0;
-            chips.add(
-              _buildGroupFilterChip(
-                label: group.name,
-                count: count > 0 ? count : null,
-                selected: _selectedGroupId == group.id,
-                onSelected: () => _onGroupFilterChanged(group.id),
-                accentColor: Color(group.colorValue),
-              ),
-            );
-          }
-
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(children: chips),
-          );
-        },
-        loading: () => const SizedBox.shrink(),
-        error: (_, __) => const SizedBox.shrink(),
-      );
-    }
+    final tripRecordsAsyncValue = ref.watch(tripRecordsProvider);
+    final groupsAsyncValue = ref.watch(myGroupsProvider);
 
     return Scaffold(
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateTripPopup(context, ref),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.edit_outlined),
-        label: const Text('일기 쓰기'),
-      ),
       body: Stack(
         children: [
           KakaoMap(
+            option: KakaoMapOption(
+              position: _currentMapCenter ?? const LatLng(37.5665, 126.9780),
+              zoomLevel: 15,
+            ),
             onMapReady: (controller) async {
               _mapController = controller;
-              _currentMapCenter = const LatLng(37.5665, 126.9780);
-              debugPrint("Map controller is ready.");
+              await _preparePoiIcon();
               await _moveToCurrentUserLocation();
-              final records = ref.read(tripRecordsProvider).asData?.value;
-              if (records != null) {
-                await _syncMarkers(_applyFilters(records));
-              }
+              final records = tripRecordsAsyncValue.asData?.value ?? [];
+              await _syncMarkers(_applyFilters(records));
             },
-            option: const KakaoMapOption(
-              position: LatLng(37.5665, 126.9780),
-              zoomLevel: 14,
+            onCameraMoveEnd: (cameraPosition, gestureType) {
+              _currentMapCenter = cameraPosition.position;
+              _refreshCenter();
+            },
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              title: const Text('내 일기', style: heading2),
+              centerTitle: false,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.search, color: textColor),
+                  onPressed: _openSearch,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add, color: textColor),
+                  onPressed: () => _showCreateTripPopup(context, ref),
+                ),
+              ],
             ),
           ),
-
-          // 상단 검색 바
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(30),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              )
-                            ],
-                          ),
-                          child: TextField(
-                            readOnly: true,
-                            onTap: _openSearch,
-                            decoration: const InputDecoration(
-                              prefixIcon:
-                                  Icon(Icons.search, color: subTextColor),
-                              hintText: '장소, 기록 검색...',
-                              hintStyle: TextStyle(color: subTextColor),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(vertical: 14),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      FloatingActionButton(
-                        onPressed: () async {
-                          await _moveToCurrentUserLocation();
-                          await _refreshCenter();
-                        },
-                        mini: true,
-                        backgroundColor: Colors.white,
-                        elevation: 2,
-                        child: const Icon(Icons.my_location, color: primaryColor),
-                      )
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  buildGroupFilter(),
-                ],
-              ),
-            ),
-          ),
-
-          // 하단 슬라이딩 패널
           DraggableScrollableSheet(
             controller: _sheetController,
-            initialChildSize: 0.3,
-            minChildSize: 0.15,
-            maxChildSize: 0.8,
-            builder: (BuildContext context, ScrollController scrollController) {
+            initialChildSize: 0.25,
+            minChildSize: 0.1,
+            maxChildSize: 0.6,
+            builder: (context, scrollController) {
               return Container(
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(24),
-                    topRight: Radius.circular(24),
-                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 12.0,
-                      spreadRadius: 2.0,
-                      offset: const Offset(0, -2),
-                    )
+                      color: Colors.black12,
+                      blurRadius: 10,
+                      spreadRadius: 5,
+                    ),
                   ],
                 ),
                 child: Column(
                   children: [
-                    // 핸들 UI
                     GestureDetector(
-                      behavior: HitTestBehavior.opaque,
                       onTap: _toggleSheetSize,
                       child: Container(
-                        width: 50,
-                        height: 5,
-                        margin: const EdgeInsets.symmetric(vertical: 12.0),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(10),
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(20)),
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                    // "나의 기록" 타이틀 및 정렬 버튼
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Expanded(
+                      child: ListView(
+                        controller: scrollController,
                         children: [
-                          const Text('나의 기록', style: heading2),
-                          InkWell(
-                            onTap: _showSortBottomSheet,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 10),
                             child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(_sortOrderLabel, style: bodyText2),
-                                const Icon(Icons.arrow_drop_down,
-                                    color: subTextColor),
+                                Text('일기 목록', style: heading3),
+                                InkWell(
+                                  onTap: _showSortBottomSheet,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    child: Row(
+                                      children: [
+                                        Text(_sortOrderLabel, style: bodyText2),
+                                        const Icon(Icons.arrow_drop_down,
+                                            color: subTextColor),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
-                          )
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // 기록 목록 또는 빈 상태 UI
-                    Expanded(
-                      child: tripRecordsAsync.when(
-                        data: (records) {
-                          final filteredRecords = _applyFilters(records);
-                          if (filteredRecords.isEmpty) {
-                            final emptyMessage = _selectedGroupId == null
-                                ? '기록된 추억이 없습니다.'
-                                : '선택한 그룹에 기록이 없습니다.';
-                            final emptySubMessage = _selectedGroupId == null
-                                ? '지도에 나만의 기록을 추가해보세요.'
-                                : '다른 그룹을 선택하거나 새로운 기록을 추가해보세요.';
-                            return Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.map_outlined,
-                                      size: 48, color: Colors.grey[400]),
-                                  const SizedBox(height: 16),
-                                  Text(emptyMessage, style: bodyText1),
-                                  const SizedBox(height: 4),
-                                  Text(emptySubMessage, style: bodyText2),
-                                ],
-                              ),
-                            );
-                          }
+                          ),
+                          groupsAsyncValue.when(
+                            data: (groups) {
+                              final allRecordsCount = tripRecordsAsyncValue.asData?.value.length ?? 0;
+                              final noGroupRecordsCount = tripRecordsAsyncValue.asData?.value.where((record) => (record.group?.id ?? record.groupIdString)?.isEmpty ?? true).length ?? 0;
 
-                          final sortedRecords = _sortRecords(filteredRecords);
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                child: Row(
+                                  children: [
+                                    _buildGroupFilterChip(
+                                      label: '전체',
+                                      count: allRecordsCount,
+                                      selected: _selectedGroupId == null,
+                                      onSelected: () => _onGroupFilterChanged(null),
+                                    ),
+                                    _buildGroupFilterChip(
+                                      label: '그룹 없음',
+                                      count: noGroupRecordsCount,
+                                      selected: _selectedGroupId == '',
+                                      onSelected: () => _onGroupFilterChanged(''),
+                                    ),
+                                    ...groups.map((group) {
+                                      final count = tripRecordsAsyncValue.asData?.value.where((record) => (record.group?.id ?? record.groupIdString) == group.id).length ?? 0;
+                                      return _buildGroupFilterChip(
+                                        label: group.name,
+                                        count: count,
+                                        selected: _selectedGroupId == group.id,
+                                        onSelected: () => _onGroupFilterChanged(group.id),
+                                        accentColor: Color(group.colorValue),
+                                      );
+                                    }).toList(),
+                                  ],
+                                ),
+                              );
+                            },
+                            loading: () => const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              child: LinearProgressIndicator(),
+                            ),
+                            error: (err, _) => Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              child: Text('그룹 정보를 불러오지 못했습니다: $err', style: bodyText2.copyWith(color: Colors.redAccent)),
+                            ),
+                          ),
+                          tripRecordsAsyncValue.when(
+                            data: (records) {
+                              final filteredRecords = _applyFilters(records);
+                              final sortedRecords = _sortRecords(filteredRecords);
 
-                          final currentIndex = _currentRecordPageNotifier.value;
-                          final clampedIndex = currentIndex.clamp(0, sortedRecords.length - 1).toInt();
-                          if (clampedIndex != currentIndex) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (!mounted) return;
-                              if (_recordPageController.hasClients) {
-                                _recordPageController.jumpToPage(clampedIndex);
+                              if (sortedRecords.isEmpty) {
+                                return const Padding(
+                                  padding: EdgeInsets.all(20),
+                                  child: Center(child: Text('표시할 일기가 없습니다.')),
+                                );
                               }
-                              _currentRecordPageNotifier.value = clampedIndex;
-                            });
-                          }
 
-                          return ListView(
-                            controller: scrollController,
-                            padding: const EdgeInsets.only(bottom: 24),
-                            children: [
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                height: 320,
+                              return SizedBox(
+                                height: 300,
                                 child: PageView.builder(
                                   controller: _recordPageController,
                                   itemCount: sortedRecords.length,
                                   onPageChanged: (index) {
                                     _currentRecordPageNotifier.value = index;
+                                    final record = sortedRecords[index];
+                                    if (record.latitude != null && record.longitude != null) {
+                                      _mapController?.moveCamera(
+                                        CameraUpdate.newCenterPosition(LatLng(record.latitude!, record.longitude!)),
+                                        animation: CameraAnimation(500),
+                                      );
+                                      _onMarkerTapped(record.id);
+                                    }
                                   },
                                   itemBuilder: (context, index) {
                                     final record = sortedRecords[index];
-                                    final horizontalPadding = index == 0
-                                        ? 24.0
-                                        : index == sortedRecords.length - 1
-                                            ? 24.0
-                                            : 12.0;
                                     return Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: horizontalPadding,
-                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                                       child: _TripRecordSlideCard(
                                         record: record,
                                         onTap: () => _openTripRecord(record),
@@ -1164,50 +1082,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     );
                                   },
                                 ),
-                              ),
-                              const SizedBox(height: 16),
-                              ValueListenableBuilder<int>(
-                                valueListenable: _currentRecordPageNotifier,
-                                builder: (_, currentPage, __) {
-                                  final safePage = sortedRecords.isEmpty
-                                      ? 0
-                                      : currentPage.clamp(0, sortedRecords.length - 1).toInt();
-                                  return Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: List.generate(sortedRecords.length, (index) {
-                                      final isActive = index == safePage;
-                                      return AnimatedContainer(
-                                        duration: const Duration(milliseconds: 250),
-                                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                                        height: 8,
-                                        width: isActive ? 18 : 8,
-                                        decoration: BoxDecoration(
-                                          color: isActive
-                                              ? primaryColor
-                                              : Colors.grey.shade300,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                      );
-                                    }),
-                                  );
-                                },
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-                          );
-                        },
-                        loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                        error: (err, stack) => Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Text(
-                              '''기록 로딩 오류:
-$err''',
-                              textAlign: TextAlign.center,
+                              );
+                            },
+                            loading: () => const SizedBox(
+                              height: 300,
+                              child: Center(child: CircularProgressIndicator()),
+                            ),
+                            error: (err, _) => Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Center(child: Text('일기를 불러오지 못했습니다: $err', style: bodyText2.copyWith(color: Colors.redAccent))),
                             ),
                           ),
-                        ),
+                        ],
                       ),
                     ),
                   ],

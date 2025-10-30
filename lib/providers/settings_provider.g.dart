@@ -6,26 +6,52 @@ part of 'settings_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$notificationSettingsControllerHash() =>
-    r'2e4a71c4c7a884f6d8b2e5e56c0fbf0b8a3e4b31';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// See also [NotificationSettingsController].
 @ProviderFor(NotificationSettingsController)
-final notificationSettingsControllerProvider =
-    AutoDisposeAsyncNotifierProvider<NotificationSettingsController,
-        NotificationSettings>.internal(
-  NotificationSettingsController.new,
-  name: r'notificationSettingsControllerProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$notificationSettingsControllerHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+const notificationSettingsControllerProvider =
+    NotificationSettingsControllerProvider._();
 
-typedef _$NotificationSettingsController
-    = AutoDisposeAsyncNotifier<NotificationSettings>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member,
-// ignore_for_file: invalid_use_of_visible_for_testing_member,
-// ignore_for_file: deprecated_member_use_from_same_package
+final class NotificationSettingsControllerProvider
+    extends $AsyncNotifierProvider<NotificationSettingsController,
+        NotificationSettings> {
+  const NotificationSettingsControllerProvider._()
+      : super(
+          from: null,
+          argument: null,
+          retry: null,
+          name: r'notificationSettingsControllerProvider',
+          isAutoDispose: true,
+          dependencies: null,
+          $allTransitiveDependencies: null,
+        );
+
+  @override
+  String debugGetCreateSourceHash() => _$notificationSettingsControllerHash();
+
+  @$internal
+  @override
+  NotificationSettingsController create() => NotificationSettingsController();
+}
+
+String _$notificationSettingsControllerHash() =>
+    r'82503e1ba8b41e19c707db02cda56a903b674546';
+
+abstract class _$NotificationSettingsController
+    extends $AsyncNotifier<NotificationSettings> {
+  FutureOr<NotificationSettings> build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final created = build();
+    final ref = this.ref
+        as $Ref<AsyncValue<NotificationSettings>, NotificationSettings>;
+    final element = ref.element as $ClassProviderElement<
+        AnyNotifier<AsyncValue<NotificationSettings>, NotificationSettings>,
+        AsyncValue<NotificationSettings>,
+        Object?,
+        Object?>;
+    element.handleValue(ref, created);
+  }
+}

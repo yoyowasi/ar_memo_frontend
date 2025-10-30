@@ -688,6 +688,7 @@ class TripRecordListScreen extends ConsumerWidget {
           // ListView 및 카드 디자인
           return RefreshIndicator(
             onRefresh: () async {
+              // ignore: unused_result
               await ref.refresh(tripRecordsProvider.future);
             },
             child: ListView.builder(

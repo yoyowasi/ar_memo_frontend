@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/models/memory.dart';
 import 'package:ar_memo_frontend/models/memory_summary.dart';
 import 'package:ar_memo_frontend/repositories/memory_repository.dart';

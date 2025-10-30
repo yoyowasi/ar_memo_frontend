@@ -21,8 +21,8 @@ dependencies:
   # 네트워킹 & 상태관리 등
   http: ^1.2.1
   flutter_dotenv: ^5.1.0
-  flutter_riverpod: ^2.5.1
-  riverpod_annotation: ^2.3.5
+  flutter_riverpod: ^3.0.3
+  riverpod_annotation: ^3.0.3
   shared_preferences: ^2.2.3
   image_picker: ^1.1.2
   vector_math: ^2.1.4
@@ -35,9 +35,9 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^4.0.0
   build_runner: ^2.4.11
-  riverpod_generator: ^2.4.1 # 이전 버전 riverpod_generator: ^2.6.5 에서 변경됨
-  riverpod_lint: ^2.6.5
-  custom_lint: ^0.7.6
+  riverpod_generator: ^3.0.3 # 이전 버전 riverpod_generator: ^2.6.5 에서 변경됨
+  riverpod_lint: ^3.0.3
+  custom_lint: ^0.8.0
 
 dependency_overrides:
   geolocator: ^11.1.0

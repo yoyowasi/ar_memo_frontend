@@ -6,21 +6,38 @@ part of 'user_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$currentUserHash() => r'47b419ceb4d4527329cac31c44fac24cb1f5d945';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// See also [currentUser].
 @ProviderFor(currentUser)
-final currentUserProvider = AutoDisposeFutureProvider<User>.internal(
-  currentUser,
-  name: r'currentUserProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$currentUserHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+const currentUserProvider = CurrentUserProvider._();
 
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef CurrentUserRef = AutoDisposeFutureProviderRef<User>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
+final class CurrentUserProvider
+    extends $FunctionalProvider<AsyncValue<User>, User, FutureOr<User>>
+    with $FutureModifier<User>, $FutureProvider<User> {
+  const CurrentUserProvider._()
+      : super(
+          from: null,
+          argument: null,
+          retry: null,
+          name: r'currentUserProvider',
+          isAutoDispose: true,
+          dependencies: null,
+          $allTransitiveDependencies: null,
+        );
+
+  @override
+  String debugGetCreateSourceHash() => _$currentUserHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<User> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<User> create(Ref ref) {
+    return currentUser(ref);
+  }
+}
+
+String _$currentUserHash() => r'47b419ceb4d4527329cac31c44fac24cb1f5d945';

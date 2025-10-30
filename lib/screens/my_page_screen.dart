@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_memo_frontend/models/group.dart';
-import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:ar_memo_frontend/providers/auth_provider.dart';
 import 'package:ar_memo_frontend/providers/user_provider.dart';
 import 'package:ar_memo_frontend/providers/group_provider.dart';

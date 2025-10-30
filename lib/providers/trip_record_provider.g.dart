@@ -6,191 +6,166 @@ part of 'trip_record_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
+
+@ProviderFor(tripRecordRepository)
+const tripRecordRepositoryProvider = TripRecordRepositoryProvider._();
+
+final class TripRecordRepositoryProvider extends $FunctionalProvider<
+    TripRecordRepository,
+    TripRecordRepository,
+    TripRecordRepository> with $Provider<TripRecordRepository> {
+  const TripRecordRepositoryProvider._()
+      : super(
+          from: null,
+          argument: null,
+          retry: null,
+          name: r'tripRecordRepositoryProvider',
+          isAutoDispose: true,
+          dependencies: null,
+          $allTransitiveDependencies: null,
+        );
+
+  @override
+  String debugGetCreateSourceHash() => _$tripRecordRepositoryHash();
+
+  @$internal
+  @override
+  $ProviderElement<TripRecordRepository> $createElement(
+          $ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  TripRecordRepository create(Ref ref) {
+    return tripRecordRepository(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(TripRecordRepository value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<TripRecordRepository>(value),
+    );
+  }
+}
+
 String _$tripRecordRepositoryHash() =>
     r'3f9cddf24638e3ba4154c0966373b3787f6b41e5';
 
-/// See also [tripRecordRepository].
-@ProviderFor(tripRecordRepository)
-final tripRecordRepositoryProvider =
-    AutoDisposeProvider<TripRecordRepository>.internal(
-  tripRecordRepository,
-  name: r'tripRecordRepositoryProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$tripRecordRepositoryHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+@ProviderFor(TripRecords)
+const tripRecordsProvider = TripRecordsProvider._();
 
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef TripRecordRepositoryRef = AutoDisposeProviderRef<TripRecordRepository>;
-String _$tripRecordDetailHash() => r'e55beea33244c3bdc0559639de0ac9deae90d713';
-
-/// Copied from Dart SDK
-class _SystemHash {
-  _SystemHash._();
-
-  static int combine(int hash, int value) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + value);
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x0007ffff & hash) << 10));
-    return hash ^ (hash >> 6);
-  }
-
-  static int finish(int hash) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x03ffffff & hash) << 3));
-    // ignore: parameter_assignments
-    hash = hash ^ (hash >> 11);
-    return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
-  }
-}
-
-/// See also [tripRecordDetail].
-@ProviderFor(tripRecordDetail)
-const tripRecordDetailProvider = TripRecordDetailFamily();
-
-/// See also [tripRecordDetail].
-class TripRecordDetailFamily extends Family<AsyncValue<TripRecord>> {
-  /// See also [tripRecordDetail].
-  const TripRecordDetailFamily();
-
-  /// See also [tripRecordDetail].
-  TripRecordDetailProvider call(
-    String id,
-  ) {
-    return TripRecordDetailProvider(
-      id,
-    );
-  }
-
-  @override
-  TripRecordDetailProvider getProviderOverride(
-    covariant TripRecordDetailProvider provider,
-  ) {
-    return call(
-      provider.id,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'tripRecordDetailProvider';
-}
-
-/// See also [tripRecordDetail].
-class TripRecordDetailProvider extends AutoDisposeFutureProvider<TripRecord> {
-  /// See also [tripRecordDetail].
-  TripRecordDetailProvider(
-    String id,
-  ) : this._internal(
-          (ref) => tripRecordDetail(
-            ref as TripRecordDetailRef,
-            id,
-          ),
-          from: tripRecordDetailProvider,
-          name: r'tripRecordDetailProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$tripRecordDetailHash,
-          dependencies: TripRecordDetailFamily._dependencies,
-          allTransitiveDependencies:
-              TripRecordDetailFamily._allTransitiveDependencies,
-          id: id,
+final class TripRecordsProvider
+    extends $AsyncNotifierProvider<TripRecords, List<TripRecord>> {
+  const TripRecordsProvider._()
+      : super(
+          from: null,
+          argument: null,
+          retry: null,
+          name: r'tripRecordsProvider',
+          isAutoDispose: true,
+          dependencies: null,
+          $allTransitiveDependencies: null,
         );
 
-  TripRecordDetailProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.id,
-  }) : super.internal();
+  @override
+  String debugGetCreateSourceHash() => _$tripRecordsHash();
 
-  final String id;
+  @$internal
+  @override
+  TripRecords create() => TripRecords();
+}
+
+String _$tripRecordsHash() => r'cadfb7d710ff3177a7ea0295dfa375b7cc213416';
+
+abstract class _$TripRecords extends $AsyncNotifier<List<TripRecord>> {
+  FutureOr<List<TripRecord>> build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final created = build();
+    final ref =
+        this.ref as $Ref<AsyncValue<List<TripRecord>>, List<TripRecord>>;
+    final element = ref.element as $ClassProviderElement<
+        AnyNotifier<AsyncValue<List<TripRecord>>, List<TripRecord>>,
+        AsyncValue<List<TripRecord>>,
+        Object?,
+        Object?>;
+    element.handleValue(ref, created);
+  }
+}
+
+@ProviderFor(tripRecordDetail)
+const tripRecordDetailProvider = TripRecordDetailFamily._();
+
+final class TripRecordDetailProvider extends $FunctionalProvider<
+        AsyncValue<TripRecord>, TripRecord, FutureOr<TripRecord>>
+    with $FutureModifier<TripRecord>, $FutureProvider<TripRecord> {
+  const TripRecordDetailProvider._(
+      {required TripRecordDetailFamily super.from,
+      required String super.argument})
+      : super(
+          retry: null,
+          name: r'tripRecordDetailProvider',
+          isAutoDispose: true,
+          dependencies: null,
+          $allTransitiveDependencies: null,
+        );
 
   @override
-  Override overrideWith(
-    FutureOr<TripRecord> Function(TripRecordDetailRef provider) create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: TripRecordDetailProvider._internal(
-        (ref) => create(ref as TripRecordDetailRef),
-        from: from,
-        name: null,
-        dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        id: id,
-      ),
-    );
+  String debugGetCreateSourceHash() => _$tripRecordDetailHash();
+
+  @override
+  String toString() {
+    return r'tripRecordDetailProvider'
+        ''
+        '($argument)';
   }
 
+  @$internal
   @override
-  AutoDisposeFutureProviderElement<TripRecord> createElement() {
-    return _TripRecordDetailProviderElement(this);
+  $FutureProviderElement<TripRecord> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<TripRecord> create(Ref ref) {
+    final argument = this.argument as String;
+    return tripRecordDetail(
+      ref,
+      argument,
+    );
   }
 
   @override
   bool operator ==(Object other) {
-    return other is TripRecordDetailProvider && other.id == id;
+    return other is TripRecordDetailProvider && other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, id.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-mixin TripRecordDetailRef on AutoDisposeFutureProviderRef<TripRecord> {
-  /// The parameter `id` of this provider.
-  String get id;
-}
+String _$tripRecordDetailHash() => r'e55beea33244c3bdc0559639de0ac9deae90d713';
 
-class _TripRecordDetailProviderElement
-    extends AutoDisposeFutureProviderElement<TripRecord>
-    with TripRecordDetailRef {
-  _TripRecordDetailProviderElement(super.provider);
+final class TripRecordDetailFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<TripRecord>, String> {
+  const TripRecordDetailFamily._()
+      : super(
+          retry: null,
+          name: r'tripRecordDetailProvider',
+          dependencies: null,
+          $allTransitiveDependencies: null,
+          isAutoDispose: true,
+        );
+
+  TripRecordDetailProvider call(
+    String id,
+  ) =>
+      TripRecordDetailProvider._(argument: id, from: this);
 
   @override
-  String get id => (origin as TripRecordDetailProvider).id;
+  String toString() => r'tripRecordDetailProvider';
 }
-
-String _$tripRecordsHash() => r'f0ae5196018de105ac780074fe49b2869661a45b';
-
-/// See also [TripRecords].
-@ProviderFor(TripRecords)
-final tripRecordsProvider =
-    AutoDisposeAsyncNotifierProvider<TripRecords, List<TripRecord>>.internal(
-  TripRecords.new,
-  name: r'tripRecordsProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$tripRecordsHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$TripRecords = AutoDisposeAsyncNotifier<List<TripRecord>>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

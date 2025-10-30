@@ -6,36 +6,87 @@ part of 'auth_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
+
+@ProviderFor(authRepository)
+const authRepositoryProvider = AuthRepositoryProvider._();
+
+final class AuthRepositoryProvider
+    extends $FunctionalProvider<AuthRepository, AuthRepository, AuthRepository>
+    with $Provider<AuthRepository> {
+  const AuthRepositoryProvider._()
+      : super(
+          from: null,
+          argument: null,
+          retry: null,
+          name: r'authRepositoryProvider',
+          isAutoDispose: false,
+          dependencies: null,
+          $allTransitiveDependencies: null,
+        );
+
+  @override
+  String debugGetCreateSourceHash() => _$authRepositoryHash();
+
+  @$internal
+  @override
+  $ProviderElement<AuthRepository> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  AuthRepository create(Ref ref) {
+    return authRepository(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(AuthRepository value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<AuthRepository>(value),
+    );
+  }
+}
+
 String _$authRepositoryHash() => r'994995eb16c71b6f41a0f13bb360256b491e2d25';
 
-/// See also [authRepository].
-@ProviderFor(authRepository)
-final authRepositoryProvider = Provider<AuthRepository>.internal(
-  authRepository,
-  name: r'authRepositoryProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$authRepositoryHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+@ProviderFor(AuthState)
+const authStateProvider = AuthStateProvider._();
 
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef AuthRepositoryRef = ProviderRef<AuthRepository>;
+final class AuthStateProvider extends $AsyncNotifierProvider<AuthState, bool> {
+  const AuthStateProvider._()
+      : super(
+          from: null,
+          argument: null,
+          retry: null,
+          name: r'authStateProvider',
+          isAutoDispose: false,
+          dependencies: null,
+          $allTransitiveDependencies: null,
+        );
+
+  @override
+  String debugGetCreateSourceHash() => _$authStateHash();
+
+  @$internal
+  @override
+  AuthState create() => AuthState();
+}
+
 String _$authStateHash() => r'66b6540617fc753232676680c09352d555aac3e4';
 
-/// See also [AuthState].
-@ProviderFor(AuthState)
-final authStateProvider = AsyncNotifierProvider<AuthState, bool>.internal(
-  AuthState.new,
-  name: r'authStateProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$authStateHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$AuthState = AsyncNotifier<bool>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
+abstract class _$AuthState extends $AsyncNotifier<bool> {
+  FutureOr<bool> build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final created = build();
+    final ref = this.ref as $Ref<AsyncValue<bool>, bool>;
+    final element = ref.element as $ClassProviderElement<
+        AnyNotifier<AsyncValue<bool>, bool>,
+        AsyncValue<bool>,
+        Object?,
+        Object?>;
+    element.handleValue(ref, created);
+  }
+}

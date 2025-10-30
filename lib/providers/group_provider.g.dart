@@ -6,188 +6,152 @@ part of 'group_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$groupRepositoryHash() => r'35cb72c3a9119cc329384fff8023e1db2751dc1b';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// See also [groupRepository].
 @ProviderFor(groupRepository)
-final groupRepositoryProvider = AutoDisposeProvider<GroupRepository>.internal(
-  groupRepository,
-  name: r'groupRepositoryProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$groupRepositoryHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+const groupRepositoryProvider = GroupRepositoryProvider._();
 
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef GroupRepositoryRef = AutoDisposeProviderRef<GroupRepository>;
-String _$myGroupsHash() => r'7431ab9070505ec99f8f563fe5d648a37f1102f6';
-
-/// See also [myGroups].
-@ProviderFor(myGroups)
-final myGroupsProvider = AutoDisposeFutureProvider<List<Group>>.internal(
-  myGroups,
-  name: r'myGroupsProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$myGroupsHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef MyGroupsRef = AutoDisposeFutureProviderRef<List<Group>>;
-String _$groupDetailHash() => r'95958fd4d72d9df4e623d61b6c33b50461f74cb4';
-
-/// Copied from Dart SDK
-class _SystemHash {
-  _SystemHash._();
-
-  static int combine(int hash, int value) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + value);
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x0007ffff & hash) << 10));
-    return hash ^ (hash >> 6);
-  }
-
-  static int finish(int hash) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x03ffffff & hash) << 3));
-    // ignore: parameter_assignments
-    hash = hash ^ (hash >> 11);
-    return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
-  }
-}
-
-/// See also [groupDetail].
-@ProviderFor(groupDetail)
-const groupDetailProvider = GroupDetailFamily();
-
-/// See also [groupDetail].
-class GroupDetailFamily extends Family<AsyncValue<Group>> {
-  /// See also [groupDetail].
-  const GroupDetailFamily();
-
-  /// See also [groupDetail].
-  GroupDetailProvider call(
-    String id,
-  ) {
-    return GroupDetailProvider(
-      id,
-    );
-  }
-
-  @override
-  GroupDetailProvider getProviderOverride(
-    covariant GroupDetailProvider provider,
-  ) {
-    return call(
-      provider.id,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'groupDetailProvider';
-}
-
-/// See also [groupDetail].
-class GroupDetailProvider extends AutoDisposeFutureProvider<Group> {
-  /// See also [groupDetail].
-  GroupDetailProvider(
-    String id,
-  ) : this._internal(
-          (ref) => groupDetail(
-            ref as GroupDetailRef,
-            id,
-          ),
-          from: groupDetailProvider,
-          name: r'groupDetailProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$groupDetailHash,
-          dependencies: GroupDetailFamily._dependencies,
-          allTransitiveDependencies:
-              GroupDetailFamily._allTransitiveDependencies,
-          id: id,
+final class GroupRepositoryProvider extends $FunctionalProvider<GroupRepository,
+    GroupRepository, GroupRepository> with $Provider<GroupRepository> {
+  const GroupRepositoryProvider._()
+      : super(
+          from: null,
+          argument: null,
+          retry: null,
+          name: r'groupRepositoryProvider',
+          isAutoDispose: true,
+          dependencies: null,
+          $allTransitiveDependencies: null,
         );
 
-  GroupDetailProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.id,
-  }) : super.internal();
+  @override
+  String debugGetCreateSourceHash() => _$groupRepositoryHash();
 
-  final String id;
+  @$internal
+  @override
+  $ProviderElement<GroupRepository> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
 
   @override
-  Override overrideWith(
-    FutureOr<Group> Function(GroupDetailRef provider) create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: GroupDetailProvider._internal(
-        (ref) => create(ref as GroupDetailRef),
-        from: from,
-        name: null,
-        dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        id: id,
-      ),
-    );
+  GroupRepository create(Ref ref) {
+    return groupRepository(ref);
   }
 
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(GroupRepository value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<GroupRepository>(value),
+    );
+  }
+}
+
+String _$groupRepositoryHash() => r'35cb72c3a9119cc329384fff8023e1db2751dc1b';
+
+@ProviderFor(myGroups)
+const myGroupsProvider = MyGroupsProvider._();
+
+final class MyGroupsProvider extends $FunctionalProvider<
+        AsyncValue<List<Group>>, List<Group>, FutureOr<List<Group>>>
+    with $FutureModifier<List<Group>>, $FutureProvider<List<Group>> {
+  const MyGroupsProvider._()
+      : super(
+          from: null,
+          argument: null,
+          retry: null,
+          name: r'myGroupsProvider',
+          isAutoDispose: true,
+          dependencies: null,
+          $allTransitiveDependencies: null,
+        );
+
   @override
-  AutoDisposeFutureProviderElement<Group> createElement() {
-    return _GroupDetailProviderElement(this);
+  String debugGetCreateSourceHash() => _$myGroupsHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<List<Group>> $createElement(
+          $ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<Group>> create(Ref ref) {
+    return myGroups(ref);
+  }
+}
+
+String _$myGroupsHash() => r'7431ab9070505ec99f8f563fe5d648a37f1102f6';
+
+@ProviderFor(groupDetail)
+const groupDetailProvider = GroupDetailFamily._();
+
+final class GroupDetailProvider
+    extends $FunctionalProvider<AsyncValue<Group>, Group, FutureOr<Group>>
+    with $FutureModifier<Group>, $FutureProvider<Group> {
+  const GroupDetailProvider._(
+      {required GroupDetailFamily super.from, required String super.argument})
+      : super(
+          retry: null,
+          name: r'groupDetailProvider',
+          isAutoDispose: true,
+          dependencies: null,
+          $allTransitiveDependencies: null,
+        );
+
+  @override
+  String debugGetCreateSourceHash() => _$groupDetailHash();
+
+  @override
+  String toString() {
+    return r'groupDetailProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<Group> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<Group> create(Ref ref) {
+    final argument = this.argument as String;
+    return groupDetail(
+      ref,
+      argument,
+    );
   }
 
   @override
   bool operator ==(Object other) {
-    return other is GroupDetailProvider && other.id == id;
+    return other is GroupDetailProvider && other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, id.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-mixin GroupDetailRef on AutoDisposeFutureProviderRef<Group> {
-  /// The parameter `id` of this provider.
-  String get id;
-}
+String _$groupDetailHash() => r'95958fd4d72d9df4e623d61b6c33b50461f74cb4';
 
-class _GroupDetailProviderElement
-    extends AutoDisposeFutureProviderElement<Group> with GroupDetailRef {
-  _GroupDetailProviderElement(super.provider);
+final class GroupDetailFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<Group>, String> {
+  const GroupDetailFamily._()
+      : super(
+          retry: null,
+          name: r'groupDetailProvider',
+          dependencies: null,
+          $allTransitiveDependencies: null,
+          isAutoDispose: true,
+        );
+
+  GroupDetailProvider call(
+    String id,
+  ) =>
+      GroupDetailProvider._(argument: id, from: this);
 
   @override
-  String get id => (origin as GroupDetailProvider).id;
+  String toString() => r'groupDetailProvider';
 }
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

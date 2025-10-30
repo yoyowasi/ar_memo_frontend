@@ -14,6 +14,12 @@ const TextStyle heading2 = TextStyle(
   color: textColor,
 );
 
+const TextStyle heading3 = TextStyle(
+  fontSize: 18,
+  fontWeight: FontWeight.bold,
+  color: textColor,
+);
+
 const TextStyle bodyText1 = TextStyle(
   fontSize: 16,
   fontWeight: FontWeight.normal,

@@ -6,22 +6,47 @@ part of 'upload_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$uploadRepositoryHash() => r'4674ad7c1025c250abb3e28ade174f27f4e325a3';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// See also [uploadRepository].
 @ProviderFor(uploadRepository)
-final uploadRepositoryProvider = AutoDisposeProvider<UploadRepository>.internal(
-  uploadRepository,
-  name: r'uploadRepositoryProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$uploadRepositoryHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+const uploadRepositoryProvider = UploadRepositoryProvider._();
 
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef UploadRepositoryRef = AutoDisposeProviderRef<UploadRepository>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
+final class UploadRepositoryProvider extends $FunctionalProvider<
+    UploadRepository,
+    UploadRepository,
+    UploadRepository> with $Provider<UploadRepository> {
+  const UploadRepositoryProvider._()
+      : super(
+          from: null,
+          argument: null,
+          retry: null,
+          name: r'uploadRepositoryProvider',
+          isAutoDispose: true,
+          dependencies: null,
+          $allTransitiveDependencies: null,
+        );
+
+  @override
+  String debugGetCreateSourceHash() => _$uploadRepositoryHash();
+
+  @$internal
+  @override
+  $ProviderElement<UploadRepository> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  UploadRepository create(Ref ref) {
+    return uploadRepository(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(UploadRepository value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<UploadRepository>(value),
+    );
+  }
+}
+
+String _$uploadRepositoryHash() => r'4674ad7c1025c250abb3e28ade174f27f4e325a3';
