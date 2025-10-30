@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ar_memo_frontend/screens/home_screen.dart';
-import 'package:ar_memo_frontend/screens/ar_viewer_screen.dart';
 import 'package:ar_memo_frontend/screens/trip_record_list_screen.dart';
 import 'package:ar_memo_frontend/screens/my_page_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
@@ -19,7 +18,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   static final List<Widget> _widgetOptions = <Widget>[
     const HomeScreen(),
-    const ARViewerScreen(),
     const TripRecordListScreen(),
     const MyPageScreen(),
   ];
@@ -64,11 +62,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               icon: Icon(Icons.map_outlined),
               activeIcon: Icon(Icons.map),
               label: '홈',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.view_in_ar_outlined),
-              activeIcon: Icon(Icons.view_in_ar),
-              label: 'AR',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.article_outlined),
