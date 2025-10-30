@@ -11,6 +11,7 @@ import 'package:ar_memo_frontend/providers/upload_provider.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
+import 'package:ar_memo_frontend/widgets/trip_record_search_delegate.dart';
 import 'dart:math';
 
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
@@ -345,6 +346,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           builder: (context) => TripRecordDetailScreen(recordId: record.id),
         ),
       );
+    }
+  }
+
+  Future<void> _openSearch() async {
+    final records = ref.read(tripRecordsProvider).asData?.value ?? [];
+    if (records.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('검색할 기록이 없습니다.')));
+      return;
+    }
+
+    final selected = await showSearch<TripRecord?>(
+      context: context,
+      delegate: TripRecordSearchDelegate(records),
+    );
+
+    if (selected != null && mounted) {
+      await _openTripRecord(selected);
     }
   }
 
@@ -710,10 +730,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           )
                         ],
                       ),
-                      child: const TextField(
-                        decoration: InputDecoration(
+                      child: TextField(
+                        readOnly: true,
+                        onTap: _openSearch,
+                        decoration: const InputDecoration(
                           prefixIcon:
-                          Icon(Icons.search, color: subTextColor),
+                              Icon(Icons.search, color: subTextColor),
                           hintText: '장소, 기록 검색...',
                           hintStyle: TextStyle(color: subTextColor),
                           border: InputBorder.none,
@@ -1064,11 +1086,4 @@ class _TripRecordSlideCard extends StatelessWidget {
     );
   }
 
-}
-
-// Group 모델 (임시 - 실제 모델 import 필요)
-class Group {
-  final String id;
-  final String name;
-  Group({required this.id, required this.name});
 }
