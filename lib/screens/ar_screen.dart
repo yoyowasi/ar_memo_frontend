@@ -28,6 +28,7 @@ class _ARScreenState extends ConsumerState<ARScreen> {
   late ARSessionManager arSessionManager;
   late ARObjectManager arObjectManager;
   late ARAnchorManager arAnchorManager;
+  bool _isSaving = false;
 
   Future<Position?> _getCurrentPosition() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -91,64 +92,79 @@ class _ARScreenState extends ConsumerState<ARScreen> {
   }
 
   Future<void> _onPlaneOrPointTapped(List<ARHitTestResult> hits) async {
+    if (_isSaving) return;
     if (hits.isEmpty) return;
-    final hit = hits.first;
 
-    final position = await _getCurrentPosition();
-    if (position == null) {
-      return;
-    }
+    setState(() {
+      _isSaving = true;
+    });
 
-    // ✅ 앵커 생성 (0.7.3)
-    final anchor = ARPlaneAnchor(transformation: hit.worldTransform);
-    final didAddAnchor = await arAnchorManager.addAnchor(anchor);
-    if (didAddAnchor != true) {
-      arSessionManager.onError('앵커 추가 실패');
-      return;
-    }
-
-    // ✅ 노드 생성
-    // NodeType.localGLTF2는 .gltf/.glb 모두 지원합니다.
-    final node = ARNode(
-      type: NodeType.localGLTF2,
-      uri: 'Models/frame.glb',
-      scale: vector.Vector3(0.5, 0.5, 0.5),
-      // 필요 시 position/rotation/eulerAngles 추가
-    );
-
-    // ✅ 0.7.3에서는 parentNodeName 대신 planeAnchor 파라미터 사용
-    final didAddNode = await arObjectManager.addNode(
-      node,
-      planeAnchor: anchor,
-    );
-
-    if (didAddNode != true) {
-      await arAnchorManager.removeAnchor(anchor);
-      arSessionManager.onError('노드 추가 실패');
-      return;
-    }
-
-    final anchorData = List<double>.from(
-      hit.worldTransform.storage,
-      growable: false,
-    );
+    ARNode? node;
+    ARPlaneAnchor? anchor;
 
     try {
+      final hit = hits.first;
+
+      final position = await _getCurrentPosition();
+      if (position == null) {
+        return;
+      }
+
+      anchor = ARPlaneAnchor(transformation: hit.worldTransform);
+      final didAddAnchor = await arAnchorManager.addAnchor(anchor);
+      if (didAddAnchor != true) {
+        arSessionManager.onError('앵커 추가 실패');
+        return;
+      }
+
+      node = ARNode(
+        type: NodeType.localGLTF2,
+        uri: 'Models/frame.glb',
+        scale: vector.Vector3(0.5, 0.5, 0.5),
+      );
+
+      final didAddNode = await arObjectManager.addNode(
+        node,
+        planeAnchor: anchor,
+      );
+
+      if (didAddNode != true) {
+        await arAnchorManager.removeAnchor(anchor);
+        arSessionManager.onError('노드 추가 실패');
+        return;
+      }
+
+      final anchorData = List<double>.from(
+        hit.worldTransform.storage,
+        growable: false,
+      );
+
       await ref.read(memoryCreatorProvider.notifier).createMemory(
             latitude: position.latitude,
             longitude: position.longitude,
             anchor: anchorData,
           );
+
       if (!mounted) return;
       debugPrint('새로운 액자 앵커와 객체가 추가되었습니다.');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('새로운 AR 메모가 저장되었습니다.')),
       );
+      Navigator.of(context).pop();
     } catch (e) {
-      await arObjectManager.removeNode(node);
-      await arAnchorManager.removeAnchor(anchor);
-      if (!mounted) return;
-      arSessionManager.onError('메모 저장에 실패했습니다: $e');
+      if (node != null) {
+        await arObjectManager.removeNode(node);
+      }
+      if (anchor != null) {
+        await arAnchorManager.removeAnchor(anchor);
+      }
+      if (mounted) {
+        arSessionManager.onError('메모 저장에 실패했습니다: $e');
+      }
+    } finally {
+      setState(() {
+        _isSaving = false;
+      });
     }
   }
 
@@ -161,9 +177,17 @@ class _ARScreenState extends ConsumerState<ARScreen> {
         elevation: 0,
       ),
       extendBodyBehindAppBar: true,
-      body: ARView(
-        onARViewCreated: onARViewCreated,
-        planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical,
+      body: Stack(
+        children: [
+          ARView(
+            onARViewCreated: onARViewCreated,
+            planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical,
+          ),
+          if (_isSaving)
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
+        ],
       ),
     );
   }

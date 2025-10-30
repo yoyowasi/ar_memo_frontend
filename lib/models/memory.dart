@@ -100,9 +100,18 @@ class Memory {
       }
     }
 
+    DateTime? parseDateTime(String? dateString) {
+      if (dateString == null) return null;
+      try {
+        return DateTime.parse(dateString);
+      } catch (e) {
+        return null;
+      }
+    }
+
     return Memory(
-      id: json['_id'],
-      userId: json['userId'],
+      id: json['_id'] ?? json['id'] ?? '',
+      userId: json['userId'] ?? '',
       latitude: latValue,
       longitude: lngValue,
       text: json['text'],
@@ -113,8 +122,8 @@ class Memory {
       favorite: json['favorite'] ?? false,
       visibility: json['visibility'] ?? 'private',
       groupId: json['groupId'],
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      createdAt: parseDateTime(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseDateTime(json['updatedAt']) ?? DateTime.now(),
       anchor: anchorData,
     );
   }
