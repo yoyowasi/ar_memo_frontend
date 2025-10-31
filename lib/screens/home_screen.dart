@@ -1060,7 +1060,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               }
 
                               return SizedBox(
-                                height: 300,
+                                height: 380,
                                 child: PageView.builder(
                                   controller: _recordPageController,
                                   itemCount: sortedRecords.length,
@@ -1102,7 +1102,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ],
                 ),
-              );
+              ));
             },
           ),
         ],
@@ -1144,7 +1144,7 @@ class _TripRecordSlideCard extends StatelessWidget {
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               child: AspectRatio(
-                aspectRatio: 4 / 3,
+                aspectRatio: 16 / 9,
                 child: record.photoUrls.isNotEmpty
                     ? Image.network(
                         toAbsoluteUrl(record.photoUrls.first),

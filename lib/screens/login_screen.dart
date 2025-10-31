@@ -56,93 +56,94 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Form(
             key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Spacer(flex: 2),
-                const Text(
-                  'PlaceNote',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                    color: primaryColor,
-                  ),
-                ),
-                const Spacer(flex: 1),
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: '이메일',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) =>
-                  (value == null || !value.contains('@'))
-                      ? '올바른 이메일을 입력해주세요.'
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: const InputDecoration(
-                    labelText: '비밀번호',
-                    border: OutlineInputBorder(),
-                  ),
-                  obscureText: true,
-                  validator: (value) => (value == null || value.length < 6)
-                      ? '6자 이상의 비밀번호를 입력해주세요.'
-                      : null,
-                ),
-                const SizedBox(height: 24),
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                  onPressed: _login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 80.0),
+                  const Text(
+                    'PlaceNote',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      color: primaryColor,
                     ),
                   ),
-                  child: const Text('로그인', style: buttonText),
-                ),
-                // 카카오 로그인 버튼이 제거되었습니다.
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      TextButton(
-                        onPressed: () {},
-                        child: const Text('아이디 찾기',
-                            style: TextStyle(color: subTextColor)),
-                      ),
-                      const Text('|', style: TextStyle(color: subTextColor)),
-                      TextButton(
-                        onPressed: () {},
-                        child: const Text('비밀번호 찾기',
-                            style: TextStyle(color: subTextColor)),
-                      ),
-                      const Text('|', style: TextStyle(color: subTextColor)),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const RegisterScreen()),
-                          );
-                        },
-                        child: const Text('회원가입',
-                            style: TextStyle(color: subTextColor)),
-                      ),
-                    ],
+                  const SizedBox(height: 48.0),
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: const InputDecoration(
+                      labelText: '이메일',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) =>
+                    (value == null || !value.contains('@'))
+                        ? '올바른 이메일을 입력해주세요.'
+                        : null,
                   ),
-                ),
-                const Spacer(flex: 2),
-              ],
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _passwordController,
+                    decoration: const InputDecoration(
+                      labelText: '비밀번호',
+                      border: OutlineInputBorder(),
+                    ),
+                    obscureText: true,
+                    validator: (value) => (value == null || value.length < 6)
+                        ? '6자 이상의 비밀번호를 입력해주세요.'
+                        : null,
+                  ),
+                  const SizedBox(height: 24),
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : ElevatedButton(
+                    onPressed: _login,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('로그인', style: buttonText),
+                  ),
+                  // 카카오 로그인 버튼이 제거되었습니다.
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        TextButton(
+                          onPressed: () {},
+                          child: const Text('아이디 찾기',
+                              style: TextStyle(color: subTextColor)),
+                        ),
+                        const Text('|', style: TextStyle(color: subTextColor)),
+                        TextButton(
+                          onPressed: () {},
+                          child: const Text('비밀번호 찾기',
+                              style: TextStyle(color: subTextColor)),
+                        ),
+                        const Text('|', style: TextStyle(color: subTextColor)),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => const RegisterScreen()),
+                            );
+                          },
+                          child: const Text('회원가입',
+                              style: TextStyle(color: subTextColor)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20.0),
+                ],
+              ),
             ),
           ),
         ),
