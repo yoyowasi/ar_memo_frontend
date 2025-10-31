@@ -1,3 +1,4 @@
+// lib/screens/home_screen.dart
 import 'dart:async';
 import 'dart:io';
 
@@ -61,7 +62,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     try {
       _tripRecordsSubscription = ref.listenManual<AsyncValue<List<TripRecord>>>(
         tripRecordsProvider,
-        (previous, next) {
+            (previous, next) {
           // debugPrint('Trip records changed: $next'); // Removed temporary debugPrint
           // if (next.hasError) {
           //   debugPrint('Trip records provider error: ${next.error}'); // Removed temporary debugPrint
@@ -89,7 +90,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         sorted.sort((a, b) => b.date.compareTo(a.date));
         break;
       case RecordSortOrder.oldest:
-        sorted.sort((a, b) => a.date.compareTo(b.date));
+        sorted.sort((a, b) => a.date.compareTo(a.date));
         break;
       case RecordSortOrder.title:
         sorted.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
@@ -106,13 +107,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (_selectedGroupId!.isEmpty) {
       return records
           .where((record) =>
-              (record.group?.id ?? record.groupIdString)?.isEmpty ?? true)
+      (record.group?.id ?? record.groupIdString)?.isEmpty ?? true)
           .toList();
     }
 
     return records
         .where((record) =>
-            (record.group?.id ?? record.groupIdString) == _selectedGroupId)
+    (record.group?.id ?? record.groupIdString) == _selectedGroupId)
         .toList();
   }
 
@@ -193,6 +194,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
       _markerInfoWindows[markerId] = infoTitle;
       if (record.photoUrls.isNotEmpty) {
+        // 🟢 Signed URL은 매번 바뀌므로, iconSource는 GCS key로 비교 (key가 없으므로 첫번째 URL로 임시 비교)
         final latestUrl = record.photoUrls.first;
         final cachedIconSource = _photoMarkerIconSources[markerId];
         if (cachedIconSource != null && cachedIconSource != latestUrl) {
@@ -340,6 +342,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
 
     if (record.photoUrls.isNotEmpty) {
+      // 🟢 Signed URL은 매번 바뀌므로, URL 자체로 캐시 키 사용
       final latestUrl = record.photoUrls.first;
       if (_photoMarkerIconSources[recordId] != latestUrl) {
         _photoMarkerIcons.remove(recordId);
@@ -355,7 +358,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               image: DecorationImage(
-                  image: NetworkImage(toAbsoluteUrl(record.photoUrls.first)),
+                // 🟢 toAbsoluteUrl 제거 (Signed URL은 이미 절대 경로)
+                  image: NetworkImage(record.photoUrls.first),
                   fit: BoxFit.cover),
               border: Border.all(color: Colors.white, width: 2),
               boxShadow: [
@@ -527,7 +531,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final contentController = TextEditingController();
     DateTime selectedDate = DateTime.now();
     XFile? localFile;
-    List<String> photoUrls = [];
+    // 🟢 photoKeys: DB에 저장할 GCS key
+    List<String> photoKeys = [];
+    // 🟢 tempPhotoUrl: 업로드 후 즉시 보기에 사용할 임시 URL
+    String? tempPhotoUrl;
+
     bool isProcessing = false;
     bool isLoading = false;
     double? tripLatitude;
@@ -552,7 +560,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 localFile = pickedFile;
                 tripLatitude = null;
                 tripLongitude = null;
-                photoUrls.clear();
+                photoKeys.clear();
+                tempPhotoUrl = null; // 🟢 임시 URL 초기화
               });
 
               LatLng? foundLocation = await _latLngFromExifPath(pickedFile.path);
@@ -601,7 +610,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 try {
                   final repository = ref.read(uploadRepositoryProvider);
                   final result = await repository.uploadPhoto(pickedFile);
-                  photoUrls.add(result.url);
+                  // 🟢 key와 url을 모두 받음
+                  photoKeys.add(result.key);
+                  if(builderContext.mounted) {
+                    setState(() {
+                      tempPhotoUrl = result.url; // 🟢 임시 URL 저장
+                    });
+                  }
                 } catch (e) {
                   if (builderContext.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -634,7 +649,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 );
                 return;
               }
-              if (photoUrls.isEmpty) {
+              if (photoKeys.isEmpty) { // 🟢 key가 있는지 확인
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('사진이 업로드되지 않았습니다.')),
                 );
@@ -652,7 +667,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   content: contentController.text,
                   date: selectedDate,
                   groupId: selectedGroupId,
-                  photoUrls: photoUrls,
+                  photoUrls: photoKeys, // 🟢 key 목록 전송
                   latitude: tripLatitude,
                   longitude: tripLongitude,
                 );
@@ -699,11 +714,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 decoration: BoxDecoration(
                                   color: Colors.grey[200],
                                   borderRadius: BorderRadius.circular(8),
-                                  image: localFile != null
+                                  // 🟢 임시 URL이 있으면 네트워크 이미지로, 아니면 로컬 파일로 표시
+                                  image: tempPhotoUrl != null
+                                      ? DecorationImage(
+                                    image: NetworkImage(tempPhotoUrl!),
+                                    fit: BoxFit.cover,
+                                  )
+                                      : (localFile != null
                                       ? DecorationImage(
                                       image: FileImage(File(localFile!.path)),
                                       fit: BoxFit.cover)
-                                      : null,
+                                      : null),
                                 ),
                                 child: Center(
                                   child: isProcessing
@@ -787,7 +808,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               child: Text('그룹 선택 안함'),
                             ),
                             ...groups.map(
-                              (group) => DropdownMenuItem<String?>(
+                                  (group) => DropdownMenuItem<String?>(
                                 value: group.id,
                                 child: Row(
                                   children: [
@@ -929,180 +950,180 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             maxChildSize: 0.6,
             builder: (context, scrollController) {
               return SafeArea(
-                top: false,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 10,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      GestureDetector(
-                        onTap: _toggleSheetSize,
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(20),
+                  top: false,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 10,
+                          spreadRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        GestureDetector(
+                          onTap: _toggleSheetSize,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(20),
+                              ),
                             ),
-                          ),
-                          child: Center(
-                            child: Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                borderRadius: BorderRadius.circular(2),
+                            child: Center(
+                              child: Container(
+                                width: 40,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[300],
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      Expanded(
-                        child: ListView(
-                          controller: scrollController,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 10),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('일기 목록', style: heading3),
-                                  InkWell(
-                                    onTap: _showSortBottomSheet,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
-                                      child: Row(
-                                        children: [
-                                          Text(_sortOrderLabel, style: bodyText2),
-                                          const Icon(Icons.arrow_drop_down,
-                                              color: subTextColor),
-                                        ],
+                        Expanded(
+                          child: ListView(
+                            controller: scrollController,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 20, vertical: 10),
+                                child: Row(
+                                  mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('일기 목록', style: heading3),
+                                    InkWell(
+                                      onTap: _showSortBottomSheet,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        child: Row(
+                                          children: [
+                                            Text(_sortOrderLabel, style: bodyText2),
+                                            const Icon(Icons.arrow_drop_down,
+                                                color: subTextColor),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                            groupsAsyncValue.when(
-                              data: (groups) {
+                              groupsAsyncValue.when(
+                                data: (groups) {
                                   final allRecordsCount = tripRecordsAsyncValue.asData?.value.length ?? 0;
                                   final noGroupRecordsCount = tripRecordsAsyncValue.asData?.value.where((record) => (record.group?.id ?? record.groupIdString)?.isEmpty ?? true).length ?? 0;
 
-                                return SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                                  child: Row(
-                                    children: [
-                                      _buildGroupFilterChip(
-                                        label: '전체',
-                                        count: allRecordsCount,
-                                        selected: _selectedGroupId == null,
-                                        onSelected: () => _onGroupFilterChanged(null),
-                                      ),
-                                      _buildGroupFilterChip(
-                                        label: '그룹 없음',
-                                        count: noGroupRecordsCount,
-                                        selected: _selectedGroupId == '',
-                                        onSelected: () => _onGroupFilterChanged(''),
-                                      ),
-                                      ...groups.map((group) {
-                                        final count = tripRecordsAsyncValue.asData?.value
-                                                .where((record) =>
-                                                    (record.group?.id ?? record.groupIdString) ==
-                                                    group.id)
-                                                .length ??
-                                            0;
-                                        return _buildGroupFilterChip(
-                                          label: group.name,
-                                          count: count,
-                                          selected: _selectedGroupId == group.id,
-                                          onSelected: () => _onGroupFilterChanged(group.id),
-                                          accentColor: Color(group.colorValue),
-                                        );
-                                      }).toList(),
-                                    ],
-                                  ),
-                                );
-                              },
-                              loading: () => const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                child: LinearProgressIndicator(),
-                              ),
-                              error: (err, _) => Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                child: Text('그룹 정보를 불러오지 못했습니다: $err',
-                                    style: bodyText2.copyWith(color: Colors.redAccent)),
-                              ),
-                            ),
-                          tripRecordsAsyncValue.when(
-                            data: (records) {
-                              final filteredRecords = _applyFilters(records);
-                              final sortedRecords = _sortRecords(filteredRecords);
-
-                              if (sortedRecords.isEmpty) {
-                                return const Padding(
-                                  padding: EdgeInsets.all(20),
-                                  child: Center(child: Text('표시할 일기가 없습니다.')),
-                                );
-                              }
-
-                              return SizedBox(
-                                height: 300,
-                                child: PageView.builder(
-                                  controller: _recordPageController,
-                                  itemCount: sortedRecords.length,
-                                  onPageChanged: (index) {
-                                    _currentRecordPageNotifier.value = index;
-                                    final record = sortedRecords[index];
-                                    if (record.latitude != null && record.longitude != null) {
-                                      _mapController?.moveCamera(
-                                        CameraUpdate.newCenterPosition(LatLng(record.latitude!, record.longitude!)),
-                                        animation: CameraAnimation(500),
-                                      );
-                                      _onMarkerTapped(record.id);
-                                    }
-                                  },
-                                  itemBuilder: (context, index) {
-                                    final record = sortedRecords[index];
-                                    return Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                                      child: _TripRecordSlideCard(
-                                        record: record,
-                                        onTap: () => _openTripRecord(record),
-                                      ),
-                                    );
-                                  },
+                                  return SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                                    child: Row(
+                                      children: [
+                                        _buildGroupFilterChip(
+                                          label: '전체',
+                                          count: allRecordsCount,
+                                          selected: _selectedGroupId == null,
+                                          onSelected: () => _onGroupFilterChanged(null),
+                                        ),
+                                        _buildGroupFilterChip(
+                                          label: '그룹 없음',
+                                          count: noGroupRecordsCount,
+                                          selected: _selectedGroupId == '',
+                                          onSelected: () => _onGroupFilterChanged(''),
+                                        ),
+                                        ...groups.map((group) {
+                                          final count = tripRecordsAsyncValue.asData?.value
+                                              .where((record) =>
+                                          (record.group?.id ?? record.groupIdString) ==
+                                              group.id)
+                                              .length ??
+                                              0;
+                                          return _buildGroupFilterChip(
+                                            label: group.name,
+                                            count: count,
+                                            selected: _selectedGroupId == group.id,
+                                            onSelected: () => _onGroupFilterChanged(group.id),
+                                            accentColor: Color(group.colorValue),
+                                          );
+                                        }).toList(),
+                                      ],
+                                    ),
+                                  );
+                                },
+                                loading: () => const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                  child: LinearProgressIndicator(),
                                 ),
-                              );
-                            },
-                            loading: () => const SizedBox(
-                              height: 300,
-                              child: Center(child: CircularProgressIndicator()),
-                            ),
-                            error: (err, _) => Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: Center(child: Text('일기를 불러오지 못했습니다: $err', style: bodyText2.copyWith(color: Colors.redAccent))),
-                            ),
+                                error: (err, _) => Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                  child: Text('그룹 정보를 불러오지 못했습니다: $err',
+                                      style: bodyText2.copyWith(color: Colors.redAccent)),
+                                ),
+                              ),
+                              tripRecordsAsyncValue.when(
+                                data: (records) {
+                                  final filteredRecords = _applyFilters(records);
+                                  final sortedRecords = _sortRecords(filteredRecords);
+
+                                  if (sortedRecords.isEmpty) {
+                                    return const Padding(
+                                      padding: EdgeInsets.all(20),
+                                      child: Center(child: Text('표시할 일기가 없습니다.')),
+                                    );
+                                  }
+
+                                  return SizedBox(
+                                    height: 380,
+                                    child: PageView.builder(
+                                      controller: _recordPageController,
+                                      itemCount: sortedRecords.length,
+                                      onPageChanged: (index) {
+                                        _currentRecordPageNotifier.value = index;
+                                        final record = sortedRecords[index];
+                                        if (record.latitude != null && record.longitude != null) {
+                                          _mapController?.moveCamera(
+                                            CameraUpdate.newCenterPosition(LatLng(record.latitude!, record.longitude!)),
+                                            animation: CameraAnimation(500),
+                                          );
+                                          _onMarkerTapped(record.id);
+                                        }
+                                      },
+                                      itemBuilder: (context, index) {
+                                        final record = sortedRecords[index];
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                                          child: _TripRecordSlideCard(
+                                            record: record,
+                                            onTap: () => _openTripRecord(record),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  );
+                                },
+                                loading: () => const SizedBox(
+                                  height: 300,
+                                  child: Center(child: CircularProgressIndicator()),
+                                ),
+                                error: (err, _) => Padding(
+                                  padding: const EdgeInsets.all(20),
+                                  child: Center(child: Text('일기를 불러오지 못했습니다: $err', style: bodyText2.copyWith(color: Colors.redAccent))),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
+                  ));
             },
           ),
         ],
@@ -1144,42 +1165,43 @@ class _TripRecordSlideCard extends StatelessWidget {
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               child: AspectRatio(
-                aspectRatio: 4 / 3,
+                aspectRatio: 16 / 9,
                 child: record.photoUrls.isNotEmpty
                     ? Image.network(
-                        toAbsoluteUrl(record.photoUrls.first),
-                        fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          final expected = loadingProgress.expectedTotalBytes;
-                          final loaded = loadingProgress.cumulativeBytesLoaded;
-                          final progress = expected != null ? loaded / expected : null;
-                          return Center(
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              value: progress,
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          color: Colors.grey[200],
-                          child: const Icon(
-                            Icons.broken_image_outlined,
-                            color: Colors.grey,
-                            size: 42,
-                          ),
-                        ),
-                      )
-                    : Container(
-                        color: Colors.grey[200],
-                        child: const Center(
-                          child: Icon(
-                            Icons.image_not_supported_outlined,
-                            color: Colors.grey,
-                            size: 42,
-                          ),
-                        ),
+                  // 🟢 toAbsoluteUrl 제거 (Signed URL은 이미 절대 경로)
+                  record.photoUrls.first,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    final expected = loadingProgress.expectedTotalBytes;
+                    final loaded = loadingProgress.cumulativeBytesLoaded;
+                    final progress = expected != null ? loaded / expected : null;
+                    return Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        value: progress,
                       ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    color: Colors.grey[200],
+                    child: const Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.grey,
+                      size: 42,
+                    ),
+                  ),
+                )
+                    : Container(
+                  color: Colors.grey[200],
+                  child: const Center(
+                    child: Icon(
+                      Icons.image_not_supported_outlined,
+                      color: Colors.grey,
+                      size: 42,
+                    ),
+                  ),
+                ),
               ),
             ),
             Expanded(

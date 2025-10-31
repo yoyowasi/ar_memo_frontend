@@ -50,45 +50,47 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Form(
             key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 20),
-                const Text('회원가입', style: heading1),
-                const SizedBox(height: 40),
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(labelText: '이메일', border: OutlineInputBorder()),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (v) => (v == null || !v.contains('@')) ? '올바른 이메일을 입력하세요.' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: const InputDecoration(labelText: '비밀번호', border: OutlineInputBorder()),
-                  obscureText: true,
-                  validator: (v) => (v == null || v.length < 6) ? '6자 이상의 비밀번호를 입력하세요.' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(labelText: '이름', border: OutlineInputBorder()),
-                  validator: (v) => (v == null || v.isEmpty) ? '이름을 입력하세요.' : null,
-                ),
-                const Spacer(),
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                  onPressed: _register,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 20),
+                  const Text('회원가입', style: heading1),
+                  const SizedBox(height: 40),
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: const InputDecoration(labelText: '이메일', border: OutlineInputBorder()),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (v) => (v == null || !v.contains('@')) ? '올바른 이메일을 입력하세요.' : null,
                   ),
-                  child: const Text('가입하기', style: buttonText),
-                ),
-                const SizedBox(height: 20),
-              ],
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _passwordController,
+                    decoration: const InputDecoration(labelText: '비밀번호', border: OutlineInputBorder()),
+                    obscureText: true,
+                    validator: (v) => (v == null || v.length < 6) ? '6자 이상의 비밀번호를 입력하세요.' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(labelText: '이름', border: OutlineInputBorder()),
+                    validator: (v) => (v == null || v.isEmpty) ? '이름을 입력하세요.' : null,
+                  ),
+                  const SizedBox(height: 40),
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : ElevatedButton(
+                    onPressed: _register,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('가입하기', style: buttonText),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           ),
         ),

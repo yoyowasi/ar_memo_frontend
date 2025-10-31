@@ -1,3 +1,4 @@
+// lib/screens/trip_record_list_screen.dart
 import 'dart:io';
 
 import 'package:ar_memo_frontend/models/trip_record.dart';
@@ -31,8 +32,14 @@ class TripRecordListScreen extends ConsumerWidget {
     final contentController = TextEditingController();
     DateTime? selectedDate = DateTime.now();
     final List<XFile> localFiles = [];
-    final List<String> photoUrls = [];
-    final Map<String, String> localFileUrls = {};
+
+    // 🟢 photoUrls는 이제 DB에 저장될 GCS 'key'를 담습니다.
+    final List<String> photoKeys = [];
+    // 🟢 localFileUrls는 임시 보기용 'url'을 담습니다.
+    final Map<String, String> localFileToUrl = {};
+    // 🟢 로컬 파일과 GCS key를 매핑합니다.
+    final Map<String, String> localFileToKey = {};
+
     double? tripLatitude;
     double? tripLongitude;
     bool isUploading = false;
@@ -112,9 +119,12 @@ class TripRecordListScreen extends ConsumerWidget {
                 setState(() {
                   for (var i = 0; i < pickedFiles.length; i++) {
                     final file = pickedFiles[i];
-                    final url = results[i].url;
-                    photoUrls.add(url);
-                    localFileUrls[file.path] = url;
+                    final result = results[i];
+
+                    // 🟢 DB 저장용 key와 임시 보기용 url을 분리하여 저장
+                    photoKeys.add(result.key);
+                    localFileToUrl[file.path] = result.url;
+                    localFileToKey[file.path] = result.key;
                   }
                 });
               } catch (e) {
@@ -122,10 +132,11 @@ class TripRecordListScreen extends ConsumerWidget {
                   setState(() {
                     for (final file in pickedFiles) {
                       localFiles.remove(file);
-                      final removedUrl = localFileUrls.remove(file.path);
-                      if (removedUrl != null) {
-                        photoUrls.remove(removedUrl);
+                      final removedKey = localFileToKey.remove(file.path);
+                      if (removedKey != null) {
+                        photoKeys.remove(removedKey);
                       }
+                      localFileToUrl.remove(file.path);
                     }
                   });
                   ScaffoldMessenger.of(context)
@@ -172,7 +183,7 @@ class TripRecordListScreen extends ConsumerWidget {
                   content: contentController.text,
                   date: selectedDate!,
                   groupId: selectedGroupId,
-                  photoUrls: photoUrls,
+                  photoUrls: photoKeys, // 🟢 url 목록 대신 key 목록을 전송
                   latitude: currentLat,
                   longitude: currentLng,
                 );
@@ -197,9 +208,9 @@ class TripRecordListScreen extends ConsumerWidget {
               ),
               titlePadding: const EdgeInsets.only(top: 24, bottom: 0),
               contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               actionsPadding:
-                  const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+              const EdgeInsets.only(left: 16, right: 16, bottom: 16),
               title: const Center(child: Text('일기 생성', style: heading2)),
               content: SingleChildScrollView(
                 child: Column(
@@ -222,16 +233,16 @@ class TripRecordListScreen extends ConsumerWidget {
                                 child: Center(
                                   child: isUploading
                                       ? const SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
                                       : const Icon(
-                                          Icons.add_a_photo_outlined,
-                                          color: subTextColor,
-                                        ),
+                                    Icons.add_a_photo_outlined,
+                                    color: subTextColor,
+                                  ),
                                 ),
                               ),
                             ),
@@ -242,16 +253,26 @@ class TripRecordListScreen extends ConsumerWidget {
                               scrollDirection: Axis.horizontal,
                               itemCount: localFiles.length,
                               separatorBuilder: (_, __) =>
-                                  const SizedBox(width: 8),
+                              const SizedBox(width: 8),
                               itemBuilder: (ctx, index) {
                                 final file = localFiles[index];
+                                // 🟢 임시 보기용 URL 사용
+                                final displayUrl = localFileToUrl[file.path];
+
                                 return SizedBox(
                                   width: 100,
                                   child: Stack(
                                     children: [
                                       ClipRRect(
                                         borderRadius: BorderRadius.circular(8),
-                                        child: Image.file(
+                                        // 🟢 표시: 로컬 파일(FileImage) 또는 업로드된 임시 URL(NetworkImage)
+                                        child: displayUrl != null
+                                            ? Image.network(
+                                          displayUrl,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.error_outline)),
+                                        )
+                                            : Image.file(
                                           File(file.path),
                                           fit: BoxFit.cover,
                                         ),
@@ -263,11 +284,12 @@ class TripRecordListScreen extends ConsumerWidget {
                                           onTap: () {
                                             setState(() {
                                               localFiles.remove(file);
-                                              final removedUrl = localFileUrls
-                                                  .remove(file.path);
-                                              if (removedUrl != null) {
-                                                photoUrls.remove(removedUrl);
+                                              // 🟢 key와 url을 모두 제거
+                                              final removedKey = localFileToKey.remove(file.path);
+                                              if (removedKey != null) {
+                                                photoKeys.remove(removedKey);
                                               }
+                                              localFileToUrl.remove(file.path);
                                             });
                                           },
                                           child: Container(
@@ -329,7 +351,7 @@ class TripRecordListScreen extends ConsumerWidget {
                               selectedDate == null
                                   ? '날짜 선택'
                                   : DateFormat('yyyy. MM. dd')
-                                      .format(selectedDate!),
+                                  .format(selectedDate!),
                               style: bodyText1,
                             ),
                             const Icon(
@@ -365,7 +387,7 @@ class TripRecordListScreen extends ConsumerWidget {
                               child: Text('그룹 선택 안함'),
                             ),
                             ...groups.map(
-                              (group) => DropdownMenuItem<String?>(
+                                  (group) => DropdownMenuItem<String?>(
                                 value: group.id,
                                 child: Row(
                                   children: [
@@ -439,23 +461,23 @@ class TripRecordListScreen extends ConsumerWidget {
                       subtitle: Text(
                         tripLatitude != null && tripLongitude != null
                             ? '${tripLatitude!.toStringAsFixed(5)}, '
-                                '${tripLongitude!.toStringAsFixed(5)}'
+                            '${tripLongitude!.toStringAsFixed(5)}'
                             : '사진 EXIF 또는 기기 위치 허용 시 자동 입력됩니다.',
                         style: bodyText2,
                       ),
                       trailing: tripLatitude != null && tripLongitude != null
                           ? IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  tripLatitude = null;
-                                  tripLongitude = null;
-                                });
-                              },
-                              icon: const Icon(
-                                Icons.clear,
-                                color: subTextColor,
-                              ),
-                            )
+                        onPressed: () {
+                          setState(() {
+                            tripLatitude = null;
+                            tripLongitude = null;
+                          });
+                        },
+                        icon: const Icon(
+                          Icons.clear,
+                          color: subTextColor,
+                        ),
+                      )
                           : null,
                     ),
                   ],
@@ -483,13 +505,13 @@ class TripRecordListScreen extends ConsumerWidget {
                   ),
                   child: isLoading
                       ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
                       : const Text('저장하기'),
                 ),
               ],
@@ -510,9 +532,9 @@ class TripRecordListScreen extends ConsumerWidget {
       case TripRecordFilter.withGroup:
         return records
             .where((record) =>
-                record.group != null ||
-                (record.groupIdString != null &&
-                    record.groupIdString!.isNotEmpty))
+        record.group != null ||
+            (record.groupIdString != null &&
+                record.groupIdString!.isNotEmpty))
             .toList();
     }
   }
@@ -714,7 +736,8 @@ class TripRecordListScreen extends ConsumerWidget {
                         SizedBox(
                           width: 100, height: 100,
                           child: record.photoUrls.isNotEmpty
-                              ? Image.network(toAbsoluteUrl(record.photoUrls.first), fit: BoxFit.cover,
+                          // 🟢 toAbsoluteUrl 제거 (Signed URL은 이미 절대 경로임)
+                              ? Image.network(record.photoUrls.first, fit: BoxFit.cover,
                             loadingBuilder: (context, child, loadingProgress) => loadingProgress == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
                             errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[200], child: const Icon(Icons.broken_image_outlined, color: Colors.grey)),
                           )

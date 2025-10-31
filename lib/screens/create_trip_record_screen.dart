@@ -1,6 +1,9 @@
+// lib/screens/create_trip_record_screen.dart
 import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:ar_memo_frontend/utils/url_utils.dart';
+// 🟢 toAbsoluteUrl 제거 (Signed URL은 toAbsoluteUrl이 필요 없음)
+// import 'package:ar_memo_frontend/utils/url_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -14,13 +17,19 @@ import 'package:ar_memo_frontend/screens/group_screen.dart';
 
 class CreateTripRecordScreen extends ConsumerStatefulWidget {
   final TripRecord? recordToEdit; // 수정 모드를 위한 데이터
-  final List<String>? initialPhotoUrls; // 생성 모드를 위한 초기 사진
+
+  // 🟢 (수정) 생성 모드 진입 시 key/url을 받음
+  //    (이전 화면에서 uploadPhoto()를 호출하고 그 결과를 넘겨줌)
+  final List<String>? initialPhotoKeys;
+  final List<String>? initialPhotoUrls;
+
   final double? initialLatitude;
   final double? initialLongitude;
 
   const CreateTripRecordScreen({
     super.key,
     this.recordToEdit,
+    this.initialPhotoKeys,
     this.initialPhotoUrls,
     this.initialLatitude,
     this.initialLongitude,
@@ -41,10 +50,24 @@ class _CreateTripRecordScreenState
   bool _isUploading = false; // 이미지 업로드 로딩 상태
   String? _selectedGroupId;
 
-  final List<String> _photoUrls = []; // 최종 서버 URL 목록 (기존 + 신규)
+  // 🟢 _photoKeys: DB에 저장될 최종 GCS 'key' 목록 (기존 + 신규)
+  final List<String> _photoKeys = [];
+  // 🟢 _tempPhotoUrls: 화면 표시에 사용할 임시 URL 목록 (기존 + 신규)
+  final List<String> _tempPhotoUrls = [];
+
   final List<XFile> _localFiles = []; // 새로 추가한 로컬 파일 목록
-  final List<String> _removedUrls = []; // 삭제된 기존 서버 URL 목록
-  final Map<String, String> _localFileToUrl = {}; // 로컬 파일 경로 ↔ 업로드 URL 매핑
+
+  // 🟢 _removedKeys: 삭제된 *기존* GCS 'key' 목록 (수정 모드용)
+  final List<String> _removedKeys = [];
+  // 🟢 _removedUrls: [오류 수정] 삭제된 *기존* 임시 URL 목록 (수정 모드용)
+  final List<String> _removedUrls = [];
+
+  // 🟢 로컬 파일 ↔ 업로드된 key/url 매핑
+  final Map<String, String> _localFileToKey = {};
+  final Map<String, String> _localFileToUrl = {};
+  // 🟢 (수정모드) 기존 Key ↔ 기존 Url 매핑
+  final Map<String, String> _keyToUrl = {};
+
 
   bool get _isEditMode => widget.recordToEdit != null;
 
@@ -56,26 +79,47 @@ class _CreateTripRecordScreenState
       _titleController.text = record.title;
       _contentController.text = record.content;
       _selectedDate = record.date;
-      _photoUrls.addAll(record.photoUrls); // 기존 이미지 URL 로드
+
+      // 🟢 (수정) 수정 모드에서는 record의 key와 url 목록을 모두 가져온다.
+      _photoKeys.addAll(record.photoKeys);
+      _tempPhotoUrls.addAll(record.photoUrls);
+
+      // 🟢 key-url 매핑을 미리 만들어둔다 (삭제 시 사용)
+      for(int i = 0; i < record.photoKeys.length; i++) {
+        if (i < record.photoUrls.length) {
+          _keyToUrl[record.photoKeys[i]] = record.photoUrls[i];
+        }
+      }
+
       _selectedGroupId = record.group?.id ?? record.groupIdString;
       if (_selectedGroupId != null && _selectedGroupId!.isEmpty) {
         _selectedGroupId = null;
       }
     } else {
       _selectedDate = DateTime.now(); // 생성 모드는 오늘 날짜
+      // 🟢 (수정) 생성 모드 진입 시 key/url을 받음
       if (widget.initialPhotoUrls != null) {
-        _photoUrls.addAll(widget.initialPhotoUrls!);
+        _tempPhotoUrls.addAll(widget.initialPhotoUrls!);
+      }
+      if (widget.initialPhotoKeys != null) {
+        _photoKeys.addAll(widget.initialPhotoKeys!);
+      }
+
+      // 🟢 key-url 매핑
+      if(widget.initialPhotoKeys != null && widget.initialPhotoUrls != null) {
+        for(int i = 0; i < widget.initialPhotoKeys!.length; i++) {
+          if (i < widget.initialPhotoUrls!.length) {
+            _keyToUrl[widget.initialPhotoKeys![i]] = widget.initialPhotoUrls![i];
+          }
+        }
       }
       _selectedGroupId = null;
     }
   }
 
-
-
   // 이미지 선택 및 업로드
   Future<void> _pickAndUploadImage() async {
     final picker = ImagePicker();
-    // imageQuality를 지정하면 재인코딩되면서 EXIF(위치 정보)가 사라지므로 사용하지 않는다.
     final List<XFile> pickedFiles = await picker.pickMultiImage();
     if (pickedFiles.isEmpty || !mounted) return;
 
@@ -93,9 +137,14 @@ class _CreateTripRecordScreenState
       setState(() {
         for (var i = 0; i < pickedFiles.length; i++) {
           final file = pickedFiles[i];
-          final url = results[i].url;
-          _photoUrls.add(url);
-          _localFileToUrl[file.path] = url;
+          final result = results[i];
+
+          // 🟢 key와 url을 각각의 목록에 추가
+          _photoKeys.add(result.key);
+          _tempPhotoUrls.add(result.url); // 임시 보기용 URL
+          _localFileToKey[file.path] = result.key;
+          _localFileToUrl[file.path] = result.url;
+          _keyToUrl[result.key] = result.url; // key-url 매핑 추가
         }
       });
     } catch (e) {
@@ -103,9 +152,14 @@ class _CreateTripRecordScreenState
         setState(() {
           for (final file in pickedFiles) {
             _localFiles.remove(file);
-            final removed = _localFileToUrl.remove(file.path);
-            if (removed != null) {
-              _photoUrls.remove(removed);
+            final removedKey = _localFileToKey.remove(file.path);
+            if (removedKey != null) {
+              _photoKeys.remove(removedKey);
+              _keyToUrl.remove(removedKey);
+            }
+            final removedUrl = _localFileToUrl.remove(file.path);
+            if(removedUrl != null) {
+              _tempPhotoUrls.remove(removedUrl);
             }
           }
         });
@@ -143,35 +197,56 @@ class _CreateTripRecordScreenState
       final navigator = Navigator.of(context);
       final messenger = ScaffoldMessenger.of(context);
 
-      // TODO: 수정 시 위치 정보 업데이트 로직 추가 (예: 지도에서 위치 다시 선택 기능)
       double? currentLat = _isEditMode ? widget.recordToEdit!.latitude : widget.initialLatitude;
       double? currentLng = _isEditMode ? widget.recordToEdit!.longitude : widget.initialLongitude;
+
+      // 🟢 (수정) 최종 GCS 'key' 목록을 계산합니다.
+      List<String> finalPhotoKeys = [];
+
+      if (_isEditMode) {
+        // 1. 기존 key 목록 (recordToEdit.photoKeys)에서
+        final Set<String> keys = Set.from(widget.recordToEdit!.photoKeys);
+
+        // 2. 삭제된 key (_removedKeys)를 제거
+        for (final removedKey in _removedKeys) {
+          keys.remove(removedKey);
+        }
+
+        // 3. 새로 추가된 key (_localFileToKey.values)를 추가
+        keys.addAll(_localFileToKey.values);
+
+        finalPhotoKeys = keys.toList();
+
+      } else {
+        // 생성 모드 (초기 key + 새로 추가된 key)
+        final Set<String> keys = Set.from(widget.initialPhotoKeys ?? []);
+        keys.addAll(_localFileToKey.values); // _localFileToKey에 있는 모든 key 추가
+        finalPhotoKeys = keys.toList();
+      }
 
       try {
         final notifier = ref.read(tripRecordsProvider.notifier);
         if (_isEditMode) {
-          // 최종 photoUrls 목록 (삭제된 것 제외)
-          final finalPhotoUrls = _photoUrls.where((url) => !_removedUrls.contains(url)).toList();
-
+          // 수정 로직
           await notifier.updateTripRecord(
             id: widget.recordToEdit!.id,
             title: _titleController.text,
             content: _contentController.text,
             date: _selectedDate!,
             groupId: _selectedGroupId,
-            photoUrls: finalPhotoUrls,
-            latitude: currentLat, // 현재는 기존 위치 유지 (수정 기능 필요 시 추가)
+            photoUrls: finalPhotoKeys, // 🟢 최종 key 목록
+            latitude: currentLat,
             longitude: currentLng,
           );
           messenger.showSnackBar(const SnackBar(content: Text('일기가 수정되었습니다.')));
         } else {
-          // 생성 로직 추가
+          // 생성 로직
           await notifier.addTripRecord(
             title: _titleController.text,
             content: _contentController.text,
             date: _selectedDate!,
             groupId: _selectedGroupId,
-            photoUrls: _photoUrls,
+            photoUrls: finalPhotoKeys, // 🟢 최종 key 목록
             latitude: currentLat,
             longitude: currentLng,
           );
@@ -239,28 +314,45 @@ class _CreateTripRecordScreenState
   Widget _buildPhotoGrid() {
     final List<Widget> imageWidgets = [];
 
-    // 1. 기존 서버 이미지 (삭제되지 않은 것만)
-    imageWidgets.addAll(_photoUrls
-        .where((url) => !_removedUrls.contains(url)) // 삭제된 URL 제외
+    // 1. 기존 서버 이미지 (임시 URL 목록, _tempPhotoUrls)
+    imageWidgets.addAll(_tempPhotoUrls
+        .where((url) => !_removedUrls.contains(url)) // 🟢 삭제된 URL 제외
         .map((url) => _buildGridItem(
       key: ValueKey(url),
-      imageProvider: NetworkImage(toAbsoluteUrl(url)),
+      // 🟢 Signed URL은 toAbsoluteUrl이 필요 없음
+      imageProvider: NetworkImage(url),
       onDelete: () => setState(() {
-        _removedUrls.add(url); // 삭제 목록에 추가 (실제 삭제는 저장 시 처리)
-        // _photoUrls.remove(url); // 바로 목록에서 제거해도 무방
+        _tempPhotoUrls.remove(url);
+        _removedUrls.add(url); // 🟢 삭제된 URL로 기록 (수정 모드용)
+
+        // 🟢 이 URL에 매핑되는 KEY를 찾아서 _removedKeys에도 추가
+        String? keyToRemove;
+        _keyToUrl.forEach((key, value) {
+          if (value == url) keyToRemove = key;
+        });
+        if (keyToRemove != null) {
+          _removedKeys.add(keyToRemove!);
+          _photoKeys.remove(keyToRemove);
+          _keyToUrl.remove(keyToRemove);
+        }
       }),
     )));
 
     // 2. 새로 추가한 로컬 이미지
     imageWidgets.addAll(_localFiles.map((file) => _buildGridItem(
       key: ValueKey(file.path),
-      imageProvider: FileImage(File(file.path)),
+      imageProvider: FileImage( File(file.path)),
       onDelete: () {
         setState(() {
           _localFiles.remove(file);
+          final removedKey = _localFileToKey.remove(file.path);
           final removedUrl = _localFileToUrl.remove(file.path);
+          if (removedKey != null) {
+            _photoKeys.remove(removedKey);
+            _keyToUrl.remove(removedKey);
+          }
           if (removedUrl != null) {
-            _photoUrls.remove(removedUrl);
+            _tempPhotoUrls.remove(removedUrl);
           }
         });
       },
@@ -312,12 +404,12 @@ class _CreateTripRecordScreenState
         bottom: PreferredSize(preferredSize: const Size.fromHeight(1.0), child: Container(color: borderColor, height: 1.0)),
         actions: _isEditMode
             ? [
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: subTextColor),
-                  tooltip: '삭제',
-                  onPressed: _isLoading ? null : _confirmDelete,
-                ),
-              ]
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: subTextColor),
+            tooltip: '삭제',
+            onPressed: _isLoading ? null : _confirmDelete,
+          ),
+        ]
             : null,
       ),
       body: Form(
@@ -413,7 +505,7 @@ class _CreateTripRecordScreenState
                               child: Text('그룹 선택 안함'),
                             ),
                             ...groups.map(
-                              (group) => DropdownMenuItem<String?>(
+                                  (group) => DropdownMenuItem<String?>(
                                 value: group.id,
                                 child: Row(
                                   children: [

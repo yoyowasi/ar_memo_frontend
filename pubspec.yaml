@@ -14,7 +14,7 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # --- 카카오맵 SDK ---
-  kakao_map_sdk: ^1.1.4
+  kakao_map_sdk: ^1.2.1
   # -------------------------------
   native_exif: ^0.6.2
 
