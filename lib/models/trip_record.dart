@@ -46,7 +46,11 @@ class TripRecord {
   final String title;
   final String content;
   final DateTime date;
+
+  // 🟢 photoUrls: 백엔드가 보내준 임시 Signed URL 목록 (화면 표시용)
   final List<String> photoUrls;
+  // 🟢 photoKeys: 백엔드가 보내준 원본 GCS Key 목록 (수정/저장용)
+  final List<String> photoKeys;
 
   final double? latitude;
   final double? longitude;
@@ -63,6 +67,7 @@ class TripRecord {
     required this.content,
     required this.date,
     required this.photoUrls,
+    required this.photoKeys, // 👈 추가
     this.latitude,
     this.longitude,
     required this.createdAt,
@@ -96,12 +101,21 @@ class TripRecord {
     final dateStr = json['date']?.toString();
     final date = dateStr != null ? DateTime.parse(dateStr) : DateTime.now();
 
-    // photoUrls: array of string
+    // 🟢 photoUrls: array of string (Signed URLs)
     final List<String> photos = [];
     final rawPhotos = json['photoUrls'];
     if (rawPhotos is List) {
       for (final p in rawPhotos) {
         if (p != null) photos.add(p.toString());
+      }
+    }
+
+    // 🟢 photoKeys: array of string (GCS Keys)
+    final List<String> keys = [];
+    final rawKeys = json['photoKeys'];
+    if (rawKeys is List) {
+      for (final k in rawKeys) {
+        if (k != null) keys.add(k.toString());
       }
     }
 
@@ -131,6 +145,7 @@ class TripRecord {
       content: content,
       date: date,
       photoUrls: photos,
+      photoKeys: keys, // 👈 추가
       latitude: lat,
       longitude: lng,
       createdAt: createdAt,
@@ -140,6 +155,7 @@ class TripRecord {
 
   /// TripRecord → JSON (서버 전송용)
   /// - 서버는 보통 `groupId`(문자열)만 받으므로, 우선순위: group?.id → groupIdString
+  /// - 🟢 photoUrls 대신 photoKeys를 서버로 보냅니다.
   Map<String, dynamic> toJson() => {
     'id': id,
     'userId': userId,
@@ -147,7 +163,7 @@ class TripRecord {
     'title': title,
     'content': content,
     'date': date.toUtc().toIso8601String(),
-    'photoUrls': photoUrls,
+    'photoUrls': photoKeys, // 👈 [중요] photoUrls 라는 이름의 필드에 'key' 목록을 담아 보냅니다.
     if (latitude != null) 'latitude': latitude,
     if (longitude != null) 'longitude': longitude,
     'createdAt': createdAt.toUtc().toIso8601String(),
@@ -163,6 +179,7 @@ class TripRecord {
     String? content,
     DateTime? date,
     List<String>? photoUrls,
+    List<String>? photoKeys, // 👈 추가
     double? latitude,
     double? longitude,
     DateTime? createdAt,
@@ -177,6 +194,7 @@ class TripRecord {
       content: content ?? this.content,
       date: date ?? this.date,
       photoUrls: photoUrls ?? this.photoUrls,
+      photoKeys: photoKeys ?? this.photoKeys, // 👈 추가
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       createdAt: createdAt ?? this.createdAt,
