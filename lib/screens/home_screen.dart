@@ -919,10 +919,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   icon: const Icon(Icons.search, color: textColor),
                   onPressed: _openSearch,
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add, color: textColor),
-                  onPressed: () => _showCreateTripPopup(context, ref),
-                ),
               ],
             ),
           ),
@@ -932,115 +928,125 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             minChildSize: 0.1,
             maxChildSize: 0.6,
             builder: (context, scrollController) {
-              return Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 10,
-                      spreadRadius: 5,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    GestureDetector(
-                      onTap: _toggleSheetSize,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(20)),
-                        ),
-                        child: Center(
-                          child: Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[300],
-                              borderRadius: BorderRadius.circular(2),
+              return SafeArea(
+                top: false,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 10,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        onTap: _toggleSheetSize,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(20),
+                            ),
+                          ),
+                          child: Center(
+                            child: Container(
+                              width: 40,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[300],
+                                borderRadius: BorderRadius.circular(2),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: ListView(
-                        controller: scrollController,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 10),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('일기 목록', style: heading3),
-                                InkWell(
-                                  onTap: _showSortBottomSheet,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 4),
-                                    child: Row(
-                                      children: [
-                                        Text(_sortOrderLabel, style: bodyText2),
-                                        const Icon(Icons.arrow_drop_down,
-                                            color: subTextColor),
-                                      ],
+                      Expanded(
+                        child: ListView(
+                          controller: scrollController,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 10),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('일기 목록', style: heading3),
+                                  InkWell(
+                                    onTap: _showSortBottomSheet,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      child: Row(
+                                        children: [
+                                          Text(_sortOrderLabel, style: bodyText2),
+                                          const Icon(Icons.arrow_drop_down,
+                                              color: subTextColor),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                          groupsAsyncValue.when(
-                            data: (groups) {
-                              final allRecordsCount = tripRecordsAsyncValue.asData?.value.length ?? 0;
-                              final noGroupRecordsCount = tripRecordsAsyncValue.asData?.value.where((record) => (record.group?.id ?? record.groupIdString)?.isEmpty ?? true).length ?? 0;
+                            groupsAsyncValue.when(
+                              data: (groups) {
+                                  final allRecordsCount = tripRecordsAsyncValue.asData?.value.length ?? 0;
+                                  final noGroupRecordsCount = tripRecordsAsyncValue.asData?.value.where((record) => (record.group?.id ?? record.groupIdString)?.isEmpty ?? true).length ?? 0;
 
-                              return SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                padding: const EdgeInsets.symmetric(horizontal: 20),
-                                child: Row(
-                                  children: [
-                                    _buildGroupFilterChip(
-                                      label: '전체',
-                                      count: allRecordsCount,
-                                      selected: _selectedGroupId == null,
-                                      onSelected: () => _onGroupFilterChanged(null),
-                                    ),
-                                    _buildGroupFilterChip(
-                                      label: '그룹 없음',
-                                      count: noGroupRecordsCount,
-                                      selected: _selectedGroupId == '',
-                                      onSelected: () => _onGroupFilterChanged(''),
-                                    ),
-                                    ...groups.map((group) {
-                                      final count = tripRecordsAsyncValue.asData?.value.where((record) => (record.group?.id ?? record.groupIdString) == group.id).length ?? 0;
-                                      return _buildGroupFilterChip(
-                                        label: group.name,
-                                        count: count,
-                                        selected: _selectedGroupId == group.id,
-                                        onSelected: () => _onGroupFilterChanged(group.id),
-                                        accentColor: Color(group.colorValue),
-                                      );
-                                    }).toList(),
-                                  ],
-                                ),
-                              );
-                            },
-                            loading: () => const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                              child: LinearProgressIndicator(),
+                                return SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                                  child: Row(
+                                    children: [
+                                      _buildGroupFilterChip(
+                                        label: '전체',
+                                        count: allRecordsCount,
+                                        selected: _selectedGroupId == null,
+                                        onSelected: () => _onGroupFilterChanged(null),
+                                      ),
+                                      _buildGroupFilterChip(
+                                        label: '그룹 없음',
+                                        count: noGroupRecordsCount,
+                                        selected: _selectedGroupId == '',
+                                        onSelected: () => _onGroupFilterChanged(''),
+                                      ),
+                                      ...groups.map((group) {
+                                        final count = tripRecordsAsyncValue.asData?.value
+                                                .where((record) =>
+                                                    (record.group?.id ?? record.groupIdString) ==
+                                                    group.id)
+                                                .length ??
+                                            0;
+                                        return _buildGroupFilterChip(
+                                          label: group.name,
+                                          count: count,
+                                          selected: _selectedGroupId == group.id,
+                                          onSelected: () => _onGroupFilterChanged(group.id),
+                                          accentColor: Color(group.colorValue),
+                                        );
+                                      }).toList(),
+                                    ],
+                                  ),
+                                );
+                              },
+                              loading: () => const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                child: LinearProgressIndicator(),
+                              ),
+                              error: (err, _) => Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                child: Text('그룹 정보를 불러오지 못했습니다: $err',
+                                    style: bodyText2.copyWith(color: Colors.redAccent)),
+                              ),
                             ),
-                            error: (err, _) => Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                              child: Text('그룹 정보를 불러오지 못했습니다: $err', style: bodyText2.copyWith(color: Colors.redAccent)),
-                            ),
-                          ),
                           tripRecordsAsyncValue.when(
                             data: (records) {
                               final filteredRecords = _applyFilters(records);

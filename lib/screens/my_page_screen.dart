@@ -171,13 +171,9 @@ class MyPageScreen extends ConsumerWidget {
                   ],
                 ),
                 child: memorySummaryAsync.when(
-                  data: (summary) => tripRecordsAsync.when(
+                  data: (_) => tripRecordsAsync.when(
                     data: (records) {
-                      final computedTotal = summary.total;
-                      final fallbackTotal = records.length;
-                      final totalDisplay = computedTotal >= fallbackTotal
-                          ? computedTotal
-                          : fallbackTotal;
+                      final totalDisplay = records.length;
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [

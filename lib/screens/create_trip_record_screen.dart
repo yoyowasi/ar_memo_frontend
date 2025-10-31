@@ -10,6 +10,7 @@ import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
+import 'package:ar_memo_frontend/screens/group_screen.dart';
 
 class CreateTripRecordScreen extends ConsumerStatefulWidget {
   final TripRecord? recordToEdit; // 수정 모드를 위한 데이터
@@ -69,7 +70,7 @@ class _CreateTripRecordScreenState
     }
   }
 
-  
+
 
   // 이미지 선택 및 업로드
   Future<void> _pickAndUploadImage() async {
@@ -112,6 +113,22 @@ class _CreateTripRecordScreenState
       }
     } finally {
       if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  Future<void> _openGroupManagement() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const GroupScreen()),
+    );
+
+    if (!mounted) return;
+
+    ref.invalidate(myGroupsProvider);
+    try {
+      await ref.refresh(myGroupsProvider.future);
+    } catch (_) {
+      // 새로고침 실패 시에도 조용히 무시하고 기존 데이터 유지
     }
   }
 
@@ -327,61 +344,106 @@ class _CreateTripRecordScreenState
             ),
             groupsAsync.when(
               data: (groups) {
-                if (groups.isEmpty) {
-                  return const SizedBox(height: 16);
+                if (_selectedGroupId != null &&
+                    groups.every((group) => group.id != _selectedGroupId)) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    setState(() {
+                      _selectedGroupId = null;
+                    });
+                  });
                 }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String?>(
-                      value: _selectedGroupId,
-                      decoration: InputDecoration(
-                        labelText: '그룹 (선택)',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                      ),
-                      items: [
-                        const DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('그룹 선택 안함'),
-                        ),
-                        ...groups.map(
-                          (group) => DropdownMenuItem<String?>(
-                            value: group.id,
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 12,
-                                  height: 12,
-                                  margin: const EdgeInsets.only(right: 8),
-                                  decoration: BoxDecoration(
-                                    color: Color(group.colorValue),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    group.name,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
+
+                return Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('그룹 선택', style: bodyText1),
+                          TextButton.icon(
+                            onPressed: _openGroupManagement,
+                            icon: const Icon(Icons.add_circle_outline),
+                            label: const Text('그룹 만들기'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: primaryColor,
                             ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (groups.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: mutedSurfaceColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Text('아직 가입된 그룹이 없습니다.', style: bodyText1),
+                              SizedBox(height: 4),
+                              Text(
+                                '그룹을 만들거나 초대를 받아서 함께 일기를 관리해보세요.',
+                                style: bodyText2,
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        DropdownButtonFormField<String?>(
+                          value: _selectedGroupId,
+                          decoration: InputDecoration(
+                            hintText: '그룹을 선택하세요 (선택)',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('그룹 선택 안함'),
+                            ),
+                            ...groups.map(
+                              (group) => DropdownMenuItem<String?>(
+                                value: group.id,
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 12,
+                                      height: 12,
+                                      margin: const EdgeInsets.only(right: 8),
+                                      decoration: BoxDecoration(
+                                        color: Color(group.colorValue),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        group.name,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            setState(() => _selectedGroupId = value);
+                          },
                         ),
-                      ],
-                      onChanged: (value) {
-                        setState(() => _selectedGroupId = value);
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                  ],
+                      const SizedBox(height: 16),
+                    ],
+                  ),
                 );
               },
               loading: () => const Padding(
