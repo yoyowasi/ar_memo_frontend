@@ -37,7 +37,8 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                
+
+                <data android:scheme="kakao${KAKAO_NATIVE_APP_KEY}" android:host="oauth"/>
             </intent-filter>
         </activity>
 
@@ -45,7 +46,7 @@
                 android:name="flutterEmbedding"
                 android:value="2" />
 
-        
+
 
         <meta-data android:name="com.google.ar.core" android:value="optional" tools:replace="android:value"/>
         <!-- <meta-data android:name="com.google.android.geo.API_KEY" android:value="YOUR_GOOGLE_MAPS_API_KEY"/> -->

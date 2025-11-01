@@ -1,3 +1,5 @@
+// android/build.gradle.kts
+
 import com.android.build.gradle.LibraryExtension
 import org.gradle.kotlin.dsl.configure
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
@@ -28,6 +30,7 @@ subprojects {
     tasks.withType<JavaCompile>().configureEach {
         sourceCompatibility = JavaVersion.VERSION_17.toString()
         targetCompatibility = JavaVersion.VERSION_17.toString()
+
     }
     tasks.withType<KotlinCompile>().configureEach {
         kotlinOptions {
@@ -36,15 +39,17 @@ subprojects {
     }
 }
 
-configurations.all {
-    resolutionStrategy {
-        eachDependency {
-            if (requested.group == "org.jetbrains.kotlin") {
-                useVersion("1.8.0") // Try a slightly older Kotlin version
-            }
-        }
-    }
-}
+// 🟢 [수정] 코틀린 버전을 강제하던 이 블록 전체를 삭제합니다.
+// configurations.all {
+//    resolutionStrategy {
+//        eachDependency {
+//            if (requested.group == "org.jetbrains.kotlin") {
+//                useVersion("1.8.0") // Try a slightly older Kotlin version
+//     
+//        }
+//        }
+//    }
+// }
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
