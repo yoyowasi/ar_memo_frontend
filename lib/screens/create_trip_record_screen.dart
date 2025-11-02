@@ -2,8 +2,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-// 🟢 toAbsoluteUrl 제거 (Signed URL은 toAbsoluteUrl이 필요 없음)
-// import 'package:ar_memo_frontend/utils/url_utils.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -180,6 +179,7 @@ class _CreateTripRecordScreenState
 
     ref.invalidate(myGroupsProvider);
     try {
+      // ignore: unused_result
       await ref.refresh(myGroupsProvider.future);
     } catch (_) {
       // 새로고침 실패 시에도 조용히 무시하고 기존 데이터 유지
@@ -319,7 +319,6 @@ class _CreateTripRecordScreenState
         .where((url) => !_removedUrls.contains(url)) // 🟢 삭제된 URL 제외
         .map((url) => _buildGridItem(
       key: ValueKey(url),
-      // 🟢 Signed URL은 toAbsoluteUrl이 필요 없음
       imageProvider: NetworkImage(url),
       onDelete: () => setState(() {
         _tempPhotoUrls.remove(url);
@@ -465,7 +464,7 @@ class _CreateTripRecordScreenState
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 24),
                       if (groups.isEmpty)
                         Container(
                           width: double.infinity,
@@ -494,11 +493,7 @@ class _CreateTripRecordScreenState
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
                             ),
-                          ),
                           items: [
                             const DropdownMenuItem<String?>(
                               value: null,
@@ -508,6 +503,7 @@ class _CreateTripRecordScreenState
                                   (group) => DropdownMenuItem<String?>(
                                 value: group.id,
                                 child: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Container(
                                       width: 12,
@@ -518,7 +514,7 @@ class _CreateTripRecordScreenState
                                         shape: BoxShape.circle,
                                       ),
                                     ),
-                                    Expanded(
+                                    Flexible(
                                       child: Text(
                                         group.name,
                                         overflow: TextOverflow.ellipsis,
@@ -550,6 +546,7 @@ class _CreateTripRecordScreenState
                 ),
               ),
             ),
+            const SizedBox(height: 16),
             // 내용
             TextFormField(controller: _contentController, style: bodyText1, decoration: InputDecoration(hintText: '내용을 입력하세요', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: borderColor)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: borderColor)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: primaryColor, width: 1.5)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), alignLabelWithHint: true), maxLines: 8),
             const SizedBox(height: 32),

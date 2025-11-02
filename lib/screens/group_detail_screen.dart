@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ar_memo_frontend/utils/url_utils.dart'; // url_utils import
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -292,7 +292,7 @@ class GroupDetailScreen extends ConsumerWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Image.network(
-                        toAbsoluteUrl(photoUrl),
+                        photoUrl,
                         fit: BoxFit.cover,
                         loadingBuilder: (context, child, progress) {
                           if (progress == null) return child;
@@ -422,7 +422,7 @@ class GroupDetailScreen extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(8),
                               child: (memory.thumbUrl?.isNotEmpty ?? false)
                                   ? Image.network(
-                                  toAbsoluteUrl(memory.thumbUrl!),
+                                  memory.thumbUrl!,
                                   width: 56, height: 56, fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) => Container(
                                       width: 56, height: 56, color: mutedSurfaceColor,

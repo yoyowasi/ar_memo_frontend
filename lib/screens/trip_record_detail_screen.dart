@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:ar_memo_frontend/utils/url_utils.dart';
+
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
@@ -92,7 +92,7 @@ class TripRecordDetailScreen extends ConsumerWidget {
                       fit: StackFit.expand,
                       children: [
                         Image.network(
-                          toAbsoluteUrl(record.photoUrls.first),
+                          record.photoUrls.first,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) => Container(
                             color: mutedSurfaceColor,
@@ -189,7 +189,7 @@ class TripRecordDetailScreen extends ConsumerWidget {
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: Image.network(
-                                  toAbsoluteUrl(url),
+                                  url,
                                   fit: BoxFit.cover,
                                   loadingBuilder: (context, child, loadingProgress) {
                                     if (loadingProgress == null) return child;
