@@ -13,7 +13,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:native_exif/native_exif.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../services/native_gallery.dart';
 
 enum TripRecordFilter {
   all,
@@ -24,9 +25,8 @@ enum TripRecordFilter {
 class TripRecordListScreen extends ConsumerWidget {
   const TripRecordListScreen({super.key});
 
-
-
-  List<TripRecord> _applyFilter(List<TripRecord> records, TripRecordFilter filter) {
+  List<TripRecord> _applyFilter(
+      List<TripRecord> records, TripRecordFilter filter) {
     switch (filter) {
       case TripRecordFilter.all:
         return records;
@@ -90,7 +90,8 @@ class TripRecordListScreen extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined),
                 title: const Text('사진이 있는 일기'),
-                onTap: () => Navigator.of(ctx).pop(TripRecordFilter.withPhotos),
+                onTap: () =>
+                    Navigator.of(ctx).pop(TripRecordFilter.withPhotos),
               ),
               ListTile(
                 leading: const Icon(Icons.group_outlined),
@@ -155,10 +156,63 @@ class TripRecordListScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _createTripRecordWithPhoto(BuildContext context, WidgetRef ref) async {
-    final picker = ImagePicker();
-    final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile == null) return;
+  Future<bool> _ensureMediaLocationPermission() async {
+    final status = await Permission.accessMediaLocation.status;
+    debugPrint('🟡 [perm] ACCESS_MEDIA_LOCATION status: $status');
+    if (status.isGranted) return true;
+    final result = await Permission.accessMediaLocation.request();
+    debugPrint('🟡 [perm] ACCESS_MEDIA_LOCATION result: $result');
+    return result.isGranted;
+  }
+
+  Future<Map<String, double>?> _getExifLocationFromXFile(XFile file) async {
+    debugPrint('[EXIF Fallback] Attempting to read EXIF from file: ${file.path}');
+    try {
+      final exif = await Exif.fromPath(file.path);
+      final latLong = await exif.getLatLong();
+      if (latLong != null) {
+        debugPrint(
+            '[EXIF Fallback] LatLong found (auto): ${latLong.latitude}, ${latLong.longitude}');
+        await exif.close();
+        return {'latitude': latLong.latitude, 'longitude': latLong.longitude};
+      }
+
+      debugPrint(
+          '[EXIF Fallback] getLatLong() failed, trying manual parsing...');
+      final latValue = await exif.getAttribute('GPSLatitude');
+      final latRef = await exif.getAttribute('GPSLatitudeRef');
+      final lonValue = await exif.getAttribute('GPSLongitude');
+      final lonRef = await exif.getAttribute('GPSLongitudeRef');
+
+      debugPrint(
+          '[EXIF Fallback] RAW EXIF latValue: $latValue (type: ${latValue.runtimeType})');
+      debugPrint(
+          '[EXIF Fallback] RAW EXIF lonValue: $lonValue (type: ${lonValue.runtimeType})');
+
+      if (latValue != null &&
+          latRef != null &&
+          lonValue != null &&
+          lonRef != null) {
+        final latitude = _convertDmsToDecimal(latValue, latRef.toString());
+        final longitude = _convertDmsToDecimal(lonValue, lonRef.toString());
+        if (latitude != null && longitude != null) {
+          debugPrint(
+              '[EXIF Fallback] LatLong found (manual): $latitude, $longitude');
+          await exif.close();
+          return {'latitude': latitude, 'longitude': longitude};
+        }
+      }
+      await exif.close();
+    } catch (e) {
+      debugPrint('[EXIF Fallback] Error reading EXIF from ${file.path}: $e');
+    }
+    debugPrint('[EXIF Fallback] No EXIF location found.');
+    return null;
+  }
+
+  Future<void> _createTripRecordWithPhoto(
+      BuildContext context, WidgetRef ref) async {
+    await _ensureMediaLocationPermission();
 
     if (!context.mounted) return;
     showDialog(
@@ -167,62 +221,64 @@ class TripRecordListScreen extends ConsumerWidget {
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
+    double? latitude;
+    double? longitude;
+    XFile? pickedFile;
+
     try {
+      debugPrint('🟢 [list_screen] 1. Trying NativeGallery.pickImageWithGPS...');
+      final native = await NativeGallery.pickImageWithGPS();
+      if (native != null) {
+        debugPrint('🟢 [list_screen] NativeGallery result=$native');
+        final uri = native['uri'] as String?;
+        final path = native['path'] as String?;
+        latitude = native['latitude'] as double?;
+        longitude = native['longitude'] as double?;
+
+        String? finalPath = path;
+        if ((finalPath == null || finalPath.isEmpty) && uri != null) {
+          finalPath = Uri.parse(uri).path;
+        }
+
+        if (finalPath != null && finalPath.isNotEmpty) {
+          pickedFile = XFile(finalPath);
+          if (latitude != null) {
+            debugPrint(
+                '🟢 [list_screen] NativeGallery SUCCESS. lat=$latitude, lng=$longitude');
+          } else {
+            debugPrint(
+                '🟢 [list_screen] NativeGallery SUCCESS (image only). No EXIF.');
+          }
+        } else {
+          debugPrint(
+              '🟥 [list_screen] native[path] 도 없고 uri 로 변환한 path 도 없음 → picker fallback');
+        }
+      } else {
+        debugPrint(
+            '🟥 [list_screen] NativeGallery returned null. Falling back to ImagePicker.');
+      }
+
+      if (pickedFile == null) {
+        final picker = ImagePicker();
+        pickedFile = await picker.pickImage(source: ImageSource.gallery);
+        if (pickedFile == null) {
+          debugPrint('🟥 [list_screen] ImagePicker also returned null.');
+          if (context.mounted) Navigator.of(context).pop();
+          return;
+        }
+
+        final location = await _getExifLocationFromXFile(pickedFile);
+        if (location != null) {
+          latitude = location['latitude'];
+          longitude = location['longitude'];
+        }
+      }
+
       final repository = ref.read(uploadRepositoryProvider);
       final result = await repository.uploadPhoto(pickedFile);
 
-      double? latitude;
-      double? longitude;
-
-      try {
-        final exif = await Exif.fromPath(pickedFile.path);
-        final coords = await exif.getLatLong();
-
-        if (coords != null) {
-          latitude = coords.latitude;
-          longitude = coords.longitude;
-          print('EXIF Location (auto): $latitude, $longitude');
-        } else {
-          print('getLatLong() failed, trying manual parsing...');
-          final latValue = await exif.getAttribute('GPSLatitude');
-          final latRef = await exif.getAttribute('GPSLatitudeRef');
-          final lonValue = await exif.getAttribute('GPSLongitude');
-          final lonRef = await exif.getAttribute('GPSLongitudeRef');
-
-          if (latValue != null && latRef != null && lonValue != null && lonRef != null) {
-            latitude = _convertDmsToDecimal(latValue, latRef);
-            longitude = _convertDmsToDecimal(lonValue, lonRef);
-            print('EXIF Location (manual): $latitude, $longitude');
-          }
-        }
-        await exif.close();
-      } catch (e) {
-        print('EXIF read failed: $e');
-      }
-
-      // EXIF에서 위치 정보를 가져오지 못한 경우, 현재 위치를 가져옵니다.
-      if (latitude == null || longitude == null) {
-        print('EXIF location not found, getting current location...');
-        try {
-          LocationPermission permission = await Geolocator.checkPermission();
-          if (permission == LocationPermission.denied) {
-            permission = await Geolocator.requestPermission();
-          }
-          if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-            print('Location permission denied.');
-          } else {
-            final position = await Geolocator.getCurrentPosition();
-            latitude = position.latitude;
-            longitude = position.longitude;
-            print('Current Location: $latitude, $longitude');
-          }
-        } catch (e) {
-          print('Failed to get current location: $e');
-        }
-      }
-
       if (!context.mounted) return;
-      Navigator.of(context).pop(); // Dismiss the dialog
+      Navigator.of(context).pop();
 
       await Navigator.push(
         context,
@@ -237,13 +293,12 @@ class TripRecordListScreen extends ConsumerWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
-      Navigator.of(context).pop(); // Dismiss the dialog
+      Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('사진 업로드 실패: $e')),
       );
     }
   }
-
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -265,8 +320,7 @@ class TripRecordListScreen extends ConsumerWidget {
         elevation: 0,
         bottom: PreferredSize(
             preferredSize: const Size.fromHeight(1.0),
-            child: Container(color: borderColor, height: 1.0)
-        ),
+            child: Container(color: borderColor, height: 1.0)),
         actions: [
           IconButton(
             icon: const Icon(Icons.search, color: textColor),
@@ -283,57 +337,90 @@ class TripRecordListScreen extends ConsumerWidget {
       body: tripRecordsAsyncValue.when(
         data: (records) {
           if (records.isEmpty) {
-            // 빈 상태 UI
-            return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.article_outlined, size: 48, color: Colors.grey[400]),
-              const SizedBox(height: 16),
-              const Text('작성된 일기가 없습니다.', style: bodyText1),
-              const SizedBox(height: 4),
-              const Text('새로운 여행 기록을 추가해보세요.', style: bodyText2),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () => _createTripRecordWithPhoto(context, ref),
-                icon: const Icon(Icons.add),
-                label: const Text('일기 쓰기'),
-                style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white),
-              )
-            ],),);
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.article_outlined,
+                      size: 48, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  const Text('작성된 일기가 없습니다.', style: bodyText1),
+                  const SizedBox(height: 4),
+                  const Text('새로운 여행 기록을 추가해보세요.', style: bodyText2),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () => _createTripRecordWithPhoto(context, ref),
+                    icon: const Icon(Icons.add),
+                    label: const Text('일기 쓰기'),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white),
+                  )
+                ],
+              ),
+            );
           }
-          // ListView 및 카드 디자인
           return RefreshIndicator(
             onRefresh: () async {
-              // ignore: unused_result
               await ref.refresh(tripRecordsProvider.future);
             },
             child: ListView.builder(
-              padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 80),
+              padding: const EdgeInsets.only(
+                  left: 16, right: 16, top: 16, bottom: 80),
               itemCount: records.length,
               itemBuilder: (context, index) {
                 final TripRecord record = records[index];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12.0),
                   elevation: 1.5,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => TripRecordDetailScreen(recordId: record.id)),
+                        MaterialPageRoute(
+                            builder: (context) =>
+                                TripRecordDetailScreen(recordId: record.id)),
                       );
                     },
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(
-                          width: 100, height: 100,
+                          width: 100,
+                          height: 100,
                           child: record.photoUrls.isNotEmpty
-                          // 🟢 toAbsoluteUrl 제거 (Signed URL은 이미 절대 경로임)
-                              ? Image.network(record.photoUrls.first, fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) => loadingProgress == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                            errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[200], child: const Icon(Icons.broken_image_outlined, color: Colors.grey)),
+                              ? Image.network(
+                            record.photoUrls.first,
+                            fit: BoxFit.cover,
+                            loadingBuilder:
+                                (context, child, loadingProgress) =>
+                            loadingProgress == null
+                                ? child
+                                : const Center(
+                              child:
+                              CircularProgressIndicator(
+                                  strokeWidth: 2),
+                            ),
+                            errorBuilder:
+                                (context, error, stackTrace) =>
+                                Container(
+                                  color: Colors.grey[200],
+                                  child: const Icon(
+                                      Icons.broken_image_outlined,
+                                      color: Colors.grey),
+                                ),
                           )
-                              : Container(color: Colors.grey[200], child: const Icon(Icons.image_not_supported_outlined, color: Colors.grey, size: 40)),
+                              : Container(
+                            color: Colors.grey[200],
+                            child: const Icon(
+                              Icons.image_not_supported_outlined,
+                              color: Colors.grey,
+                              size: 40,
+                            ),
+                          ),
                         ),
                         Expanded(
                           child: Padding(
@@ -341,11 +428,26 @@ class TripRecordListScreen extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(record.title, style: heading2.copyWith(fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                Text(record.title,
+                                    style:
+                                    heading2.copyWith(fontSize: 16),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis),
                                 const SizedBox(height: 4),
-                                Text(DateFormat('yyyy년 MM월 dd일 EEEE', 'ko_KR').format(record.date), style: bodyText2.copyWith(fontSize: 12)),
+                                Text(
+                                  DateFormat('yyyy년 MM월 dd일 EEEE', 'ko_KR')
+                                      .format(record.date),
+                                  style: bodyText2.copyWith(fontSize: 12),
+                                ),
                                 const SizedBox(height: 6),
-                                Text(record.content.isEmpty ? '(내용 없음)' : record.content, style: bodyText2, maxLines: 2, overflow: TextOverflow.ellipsis),
+                                Text(
+                                  record.content.isEmpty
+                                      ? '(내용 없음)'
+                                      : record.content,
+                                  style: bodyText2,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ],
                             ),
                           ),
@@ -359,24 +461,44 @@ class TripRecordListScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('일기 목록 로딩 오류: $err')),
+        error: (err, stack) =>
+            Center(child: Text('일기 목록 로딩 오류: $err')),
       ),
     );
   }
 }
 
-double? _convertDmsToDecimal(String dmsString, String ref) {
+double? _convertDmsToDecimal(dynamic dmsValue, String ref) {
   try {
-    List<String> parts = dmsString.split(',');
-    if (parts.length != 3) return null;
+    List<String> parts;
+
+    if (dmsValue is String) {
+      parts = dmsValue.split(',');
+    } else if (dmsValue is List) {
+      parts = dmsValue.map((e) => e.toString()).toList();
+    } else {
+      debugPrint(
+          '[_convertDmsToDecimal] Unknown DMS value type: ${dmsValue.runtimeType}');
+      return null;
+    }
+
+    if (parts.length != 3) {
+      debugPrint('[_convertDmsToDecimal] Invalid DMS parts length: $parts');
+      return null;
+    }
 
     List<double> dms = parts.map((part) {
-      List<String> div = part.split('/');
-      if (div.length != 2) throw const FormatException('Invalid DMS part');
-      double numerator = double.parse(div[0]);
-      double denominator = double.parse(div[1]);
-      if (denominator == 0) return 0.0;
-      return numerator / denominator;
+      String cleanPart = part.trim();
+      if (cleanPart.contains('/')) {
+        List<String> div = cleanPart.split('/');
+        if (div.length != 2) throw FormatException('Invalid DMS part: $cleanPart');
+        double numerator = double.parse(div[0]);
+        double denominator = double.parse(div[1]);
+        if (denominator == 0) return 0.0;
+        return numerator / denominator;
+      } else {
+        return double.parse(cleanPart);
+      }
     }).toList();
 
     double decimal = dms[0] + (dms[1] / 60) + (dms[2] / 3600);
@@ -386,7 +508,7 @@ double? _convertDmsToDecimal(String dmsString, String ref) {
     }
     return decimal;
   } catch (e) {
-    print('Error converting DMS to decimal: $e');
+    debugPrint('Error converting DMS to decimal: $e (Input: $dmsValue)');
     return null;
   }
 }

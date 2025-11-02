@@ -2,10 +2,10 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:ar_memo_frontend/providers/group_provider.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
@@ -15,10 +15,11 @@ import 'package:ar_memo_frontend/theme/text_styles.dart';
 import 'package:ar_memo_frontend/screens/group_screen.dart';
 import 'package:native_exif/native_exif.dart';
 
-class CreateTripRecordScreen extends ConsumerStatefulWidget {
-  final TripRecord? recordToEdit; // 수정 모드를 위한 데이터
+import '../services/native_gallery.dart';
 
-  // 생성 모드에서 이전 화면이 업로드한 key/url
+class CreateTripRecordScreen extends ConsumerStatefulWidget {
+  final TripRecord? recordToEdit;
+
   final List<String>? initialPhotoKeys;
   final List<String>? initialPhotoUrls;
 
@@ -50,25 +51,18 @@ class _CreateTripRecordScreenState
   String? _selectedGroupId;
   bool _isGroupChanged = false;
 
-  // DB에 저장될 최종 key 목록
   final List<String> _photoKeys = [];
-  // 화면에 보여줄 url
   final List<String> _tempPhotoUrls = [];
 
-  // 이번 화면에서 “새로” 추가한 로컬 파일
   final List<XFile> _localFiles = [];
 
-  // 수정 모드에서 기존 걸 지웠을 때 기록
   final List<String> _removedKeys = [];
   final List<String> _removedUrls = [];
 
-  // 로컬 파일 → 업로드된 key/url
   final Map<String, String> _localFileToKey = {};
   final Map<String, String> _localFileToUrl = {};
-  // 기존 key → 기존 url
   final Map<String, String> _keyToUrl = {};
 
-  // 여기 들어있는 값이 있으면 “EXIF로 읽은 좌표”
   double? _photoLatitude;
   double? _photoLongitude;
 
@@ -77,6 +71,7 @@ class _CreateTripRecordScreenState
   @override
   void initState() {
     super.initState();
+    debugPrint('🔵 [initState] isEditMode=$_isEditMode');
     if (_isEditMode) {
       final record = widget.recordToEdit!;
       _titleController.text = record.title;
@@ -97,18 +92,19 @@ class _CreateTripRecordScreenState
         _selectedGroupId = null;
       }
 
-      // 기존 글에 있던 위치는 일단 기억만 해둔다. (수정 시 새 사진을 안 고르면 이걸로 감)
       _photoLatitude = record.latitude;
       _photoLongitude = record.longitude;
+      debugPrint(
+          '🔵 [initState] edit-mode 기존 좌표: ${record.latitude}, ${record.longitude}');
     } else {
       _selectedDate = DateTime.now();
+
       if (widget.initialPhotoUrls != null) {
         _tempPhotoUrls.addAll(widget.initialPhotoUrls!);
       }
       if (widget.initialPhotoKeys != null) {
         _photoKeys.addAll(widget.initialPhotoKeys!);
       }
-
       if (widget.initialPhotoKeys != null && widget.initialPhotoUrls != null) {
         for (int i = 0; i < widget.initialPhotoKeys!.length; i++) {
           if (i < widget.initialPhotoUrls!.length) {
@@ -119,60 +115,156 @@ class _CreateTripRecordScreenState
       }
       _selectedGroupId = null;
 
-      // 생성 모드일 때 이전 화면에서 위치를 줬으면 일단 들고는 있다.
       _photoLatitude = widget.initialLatitude;
       _photoLongitude = widget.initialLongitude;
+      debugPrint(
+          '🔵 [initState] create-mode 초기 좌표: ${widget.initialLatitude}, ${widget.initialLongitude}');
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map) {
+      debugPrint('🟦 [didChangeDependencies] route args: $args');
+      _photoLatitude ??= args['initialLatitude'] as double?;
+      _photoLongitude ??= args['initialLongitude'] as double?;
+
+      final argPhotoKeys = args['initialPhotoKeys'];
+      final argPhotoUrls = args['initialPhotoUrls'];
+      if (argPhotoKeys is List && _photoKeys.isEmpty) {
+        _photoKeys.addAll(argPhotoKeys.cast<String>());
+      }
+      if (argPhotoUrls is List && _tempPhotoUrls.isEmpty) {
+        _tempPhotoUrls.addAll(argPhotoUrls.cast<String>());
+      }
+    }
+  }
+
+  Future<bool> _ensureMediaLocationPermission() async {
+    final before = await Permission.accessMediaLocation.status;
+    debugPrint('🟡 [perm] ACCESS_MEDIA_LOCATION before: $before');
+
+    if (before.isGranted) return true;
+
+    final result = await Permission.accessMediaLocation.request();
+    debugPrint('🟡 [perm] ACCESS_MEDIA_LOCATION after: $result');
+
+    return result.isGranted;
   }
 
   Future<Map<String, double>?> _getExifLocation(List<XFile> files) async {
     for (final file in files) {
+      debugPrint('Attempting to read EXIF from file: ${file.path}');
       try {
         final exif = await Exif.fromPath(file.path);
         final latLong = await exif.getLatLong();
+
         if (latLong != null) {
+          debugPrint(
+              'EXIF LatLong found: ${latLong.latitude}, ${latLong.longitude}');
           return {
             'latitude': latLong.latitude,
-            'longitude': latLong.longitude,
+            'longitude': latLong.longitude
           };
+        } else {
+          debugPrint('No LatLong found in EXIF for file: ${file.path}');
         }
       } catch (e) {
-        debugPrint('Could not read EXIF from ${file.path}: $e');
+        debugPrint('Error reading EXIF from ${file.path}: $e');
       }
     }
+    debugPrint('No EXIF location found in any of the selected files.');
     return null;
   }
 
-  // 이미지 선택 + 업로드
   Future<void> _pickAndUploadImage() async {
-    final picker = ImagePicker();
-    final List<XFile> pickedFiles = await picker.pickMultiImage();
-    if (pickedFiles.isEmpty || !mounted) return;
+    debugPrint('🟦 [_pickAndUploadImage] start');
+    if (!mounted) return;
 
     setState(() {
       _isUploading = true;
-      _localFiles.addAll(pickedFiles);
     });
 
-    final location = await _getExifLocation(pickedFiles);
-    if (mounted) {
-      setState(() {
-        // ✅ 사진에 위치정보가 있으면 그걸 쓰고, 없으면 null로 강제로 맞춘다.
-        if (location != null) {
-          _photoLatitude = location['latitude'];
-          _photoLongitude = location['longitude'];
+    try {
+      final native = await NativeGallery.pickImageWithGPS();
+      if (native != null) {
+        debugPrint('🟢 [native] result=$native');
+
+        final uri = native['uri'] as String?;
+        final path = native['path'] as String?;
+        final lat = native['latitude'] as double?;
+        final lng = native['longitude'] as double?;
+
+        if (lat != null && lng != null) {
+          _photoLatitude = lat;
+          _photoLongitude = lng;
+          debugPrint('🟢 [native] EXIF lat=$lat, lng=$lng');
         } else {
           _photoLatitude = null;
           _photoLongitude = null;
+          debugPrint('🟥 [native] EXIF 없음 → null로 보냄');
         }
-      });
-    }
 
-    try {
+        String? finalPath = path;
+        if ((finalPath == null || finalPath.isEmpty) && uri != null) {
+          finalPath = Uri.parse(uri).path;
+        }
+
+        if (finalPath != null && finalPath.isNotEmpty) {
+          final xfile = XFile(finalPath);
+          final repository = ref.read(uploadRepositoryProvider);
+          final result = await repository.uploadPhoto(xfile);
+
+          setState(() {
+            _photoKeys.add(result.key);
+            _tempPhotoUrls.add(result.url);
+
+            _localFiles.add(xfile);
+            _localFileToKey[xfile.path] = result.key;
+            _localFileToUrl[xfile.path] = result.url;
+            _keyToUrl[result.key] = result.url;
+          });
+
+          debugPrint(
+              '🟢 [native-upload] file=$finalPath, key=${result.key}, url=${result.url}');
+          return;
+        } else {
+          debugPrint('🟥 [native] path 도 없고 uri 로 변환한 path 도 없음 → picker로 폴백');
+        }
+      } else {
+        debugPrint('🟥 [native] 결과가 null → flutter picker로 폴백');
+      }
+
+      final picker = ImagePicker();
+      final List<XFile> pickedFiles = await picker.pickMultiImage();
+      debugPrint('🟦 [fallback] picked count=${pickedFiles.length}');
+      if (pickedFiles.isEmpty || !mounted) return;
+
+      setState(() {
+        _localFiles.addAll(pickedFiles);
+      });
+
+      final location = await _getExifLocation(pickedFiles);
+      if (mounted) {
+        if (location != null) {
+          _photoLatitude = location['latitude'];
+          _photoLongitude = location['longitude'];
+          debugPrint(
+              '🟢 [fallback EXIF] lat=$_photoLatitude, lng=$_photoLongitude');
+        } else {
+          _photoLatitude = null;
+          _photoLongitude = null;
+          debugPrint('🟥 [fallback EXIF] 위치 없음 → null');
+        }
+      }
+
       final repository = ref.read(uploadRepositoryProvider);
       final results = await Future.wait(
         pickedFiles.map((file) => repository.uploadPhoto(file)),
       );
+
       if (!mounted) return;
       setState(() {
         for (var i = 0; i < pickedFiles.length; i++) {
@@ -184,30 +276,25 @@ class _CreateTripRecordScreenState
           _localFileToKey[file.path] = result.key;
           _localFileToUrl[file.path] = result.url;
           _keyToUrl[result.key] = result.url;
+
+          debugPrint('🟢 [fallback upload] file=${file.path}, key=${result.key}');
         }
       });
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('🟥 [_pickAndUploadImage] error: $e');
+      debugPrint('🟥 stack: $st');
       if (mounted) {
-        setState(() {
-          for (final file in pickedFiles) {
-            _localFiles.remove(file);
-            final removedKey = _localFileToKey.remove(file.path);
-            if (removedKey != null) {
-              _photoKeys.remove(removedKey);
-              _keyToUrl.remove(removedKey);
-            }
-            final removedUrl = _localFileToUrl.remove(file.path);
-            if (removedUrl != null) {
-              _tempPhotoUrls.remove(removedUrl);
-            }
-          }
-        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('이미지 업로드 중 오류 발생: $e')),
         );
       }
     } finally {
-      if (mounted) setState(() => _isUploading = false);
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+      }
+      debugPrint('🟦 [_pickAndUploadImage] end');
     }
   }
 
@@ -221,12 +308,10 @@ class _CreateTripRecordScreenState
 
     ref.invalidate(myGroupsProvider);
     try {
-      // ignore: unused_result
       await ref.refresh(myGroupsProvider.future);
     } catch (_) {}
   }
 
-  // 저장 / 수정
   Future<void> _submitTripRecord() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedDate == null) {
@@ -239,25 +324,20 @@ class _CreateTripRecordScreenState
       final navigator = Navigator.of(context);
       final messenger = ScaffoldMessenger.of(context);
 
-      // ✅ “이 화면에서 실제로 새 사진을 골랐는가?” 만 본다.
       final bool newPhotosPicked = _localFiles.isNotEmpty;
+      debugPrint('🟧 [_submitTripRecord] newPhotosPicked=$newPhotosPicked');
 
       double? currentLat;
       double? currentLng;
 
       if (newPhotosPicked) {
-        // ✅ 새 사진을 골랐는데 EXIF가 없으면 null로 보낸다 (현재위치/이전위치로 대체 안 함)
         currentLat = _photoLatitude;
         currentLng = _photoLongitude;
       } else {
-        // 새 사진이 없으면 기존 값은 유지
-        currentLat =
-        _isEditMode ? widget.recordToEdit!.latitude : widget.initialLatitude;
-        currentLng =
-        _isEditMode ? widget.recordToEdit!.longitude : widget.initialLongitude;
+        currentLat = _photoLatitude;
+        currentLng = _photoLongitude;
       }
 
-      // 최종 key 목록 만들기
       List<String> finalPhotoKeys = [];
 
       if (_isEditMode) {
@@ -273,12 +353,13 @@ class _CreateTripRecordScreenState
         finalPhotoKeys = keys.toList();
       }
 
-      debugPrint('Create/Update payload: {'
-          'title: ${_titleController.text}, '
-          'lat: $currentLat, '
-          'lng: $currentLng, '
-          'photoKeys: $finalPhotoKeys'
-          '}');
+      debugPrint('🟧 [_submitTripRecord] payload ↓↓↓');
+      debugPrint('title=${_titleController.text}');
+      debugPrint('date=$_selectedDate');
+      debugPrint('groupId=$_selectedGroupId');
+      debugPrint('photoKeys=$finalPhotoKeys');
+      debugPrint('lat=$currentLat, lng=$currentLng');
+      debugPrint('🟧 [_submitTripRecord] payload ↑↑↑');
 
       try {
         final notifier = ref.read(tripRecordsProvider.notifier);
@@ -369,11 +450,9 @@ class _CreateTripRecordScreenState
     }
   }
 
-  // 사진 Grid
   Widget _buildPhotoGrid() {
     final List<Widget> imageWidgets = [];
 
-    // 기존 서버 이미지
     imageWidgets.addAll(
       _tempPhotoUrls
           .where((url) => !_removedUrls.contains(url))
@@ -399,7 +478,6 @@ class _CreateTripRecordScreenState
       ),
     );
 
-    // 새로 추가한 로컬 이미지
     imageWidgets.addAll(
       _localFiles.map(
             (file) => _buildGridItem(
@@ -423,7 +501,6 @@ class _CreateTripRecordScreenState
       ),
     );
 
-    // 추가 버튼
     imageWidgets.add(
       InkWell(
         key: const ValueKey('add_button'),
@@ -465,7 +542,6 @@ class _CreateTripRecordScreenState
     );
   }
 
-  // Grid item
   Widget _buildGridItem({
     required Key key,
     required ImageProvider imageProvider,
@@ -781,5 +857,31 @@ class _CreateTripRecordScreenState
         ),
       ),
     );
+  }
+}
+
+double? _convertDmsToDecimal(String dmsString, String ref) {
+  try {
+    List<String> parts = dmsString.split(',');
+    if (parts.length != 3) return null;
+
+    List<double> dms = parts.map((part) {
+      List<String> div = part.split('/');
+      if (div.length != 2) throw const FormatException('Invalid DMS part');
+      double numerator = double.parse(div[0]);
+      double denominator = double.parse(div[1]);
+      if (denominator == 0) return 0.0;
+      return numerator / denominator;
+    }).toList();
+
+    double decimal = dms[0] + (dms[1] / 60) + (dms[2] / 3600);
+
+    if (ref == 'S' || ref == 'W') {
+      decimal = -decimal;
+    }
+    return decimal;
+  } catch (e) {
+    debugPrint('🟥 [DMS] 변환 실패: $e');
+    return null;
   }
 }

@@ -81,3 +81,7 @@ android {
 kotlin {
     jvmToolchain(17)
 }
+dependencies {
+    // ✅ EXIF 읽기를 위한 네이티브 의존성 추가
+    implementation("androidx.exifinterface:exifinterface:1.4.1")
+}
