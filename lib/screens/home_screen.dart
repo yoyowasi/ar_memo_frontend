@@ -1,15 +1,12 @@
 // lib/screens/home_screen.dart
 import 'dart:async';
-import 'dart:io';
 
 import 'package:ar_memo_frontend/models/trip_record.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:ar_memo_frontend/providers/group_provider.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
-import 'package:ar_memo_frontend/providers/upload_provider.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
@@ -62,10 +59,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _tripRecordsSubscription = ref.listenManual<AsyncValue<List<TripRecord>>>(
         tripRecordsProvider,
             (previous, next) {
-          // debugPrint('Trip records changed: $next'); // Removed temporary debugPrint
-          // if (next.hasError) {
-          //   debugPrint('Trip records provider error: ${next.error}'); // Removed temporary debugPrint
-          // }
+          next.whenData((records) {
+            _syncMarkers(_applyFilters(records));
+          });
         },
       );
     } catch (e) {
@@ -89,7 +85,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         sorted.sort((a, b) => b.date.compareTo(a.date));
         break;
       case RecordSortOrder.oldest:
-        sorted.sort((a, b) => a.date.compareTo(a.date));
+        sorted.sort((a, b) => a.date.compareTo(b.date));
         break;
       case RecordSortOrder.title:
         sorted.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
@@ -116,25 +112,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         .toList();
   }
 
-  LatLng _resolveRecordPosition(TripRecord record) {
+  LatLng? _resolveRecordPosition(TripRecord record) {
     if (record.latitude != null && record.longitude != null) {
       return LatLng(record.latitude!, record.longitude!);
     }
 
-    final cached = _fallbackPositions[record.id];
-    if (cached != null) {
-      return cached;
-    }
-
-    final hash = record.id.hashCode;
-    final latOffset = ((hash & 0xFFFF) / 0xFFFF - 0.5) * 0.02;
-    final lngOffset = (((hash >> 16) & 0xFFFF) / 0xFFFF - 0.5) * 0.02;
-    final fallback = LatLng(37.5665 + latOffset, 126.9780 + lngOffset);
-    _fallbackPositions[record.id] = fallback;
-    return fallback;
+    return null;
   }
 
   Future<void> _syncMarkers(List<TripRecord> records) async {
+    print('Syncing markers for ${records.length} records');
     final controller = _mapController;
     if (controller == null) return;
 
@@ -163,49 +150,91 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     for (final record in records) {
       final markerId = record.id;
       final position = _resolveRecordPosition(record);
-      var infoTitle = record.title;
-      if (record.latitude == null || record.longitude == null) {
-        infoTitle += ' (위치 없음)';
+      print('Record ${record.id}: position is $position');
+
+      await _preparePoiIcon();
+      if (_poiIcon == null) return;
+
+      final style = PoiStyle(icon: _poiIcon!);
+      final newIds = records.map((record) => record.id).toSet();
+
+      for (final markerId in List<String>.from(_pois.keys)) {
+        if (!newIds.contains(markerId)) {
+          final poi = _pois.remove(markerId);
+          if (poi != null) {
+            await controller.labelLayer.removePoi(poi);
+          }
+          _markerInfoWindows.remove(markerId);
+          _photoMarkerIcons.remove(markerId);
+          _photoMarkerIconSources.remove(markerId);
+          _fallbackPositions.remove(markerId);
+          if (_previouslySelectedMarkerId == markerId) {
+            _previouslySelectedMarkerId = null;
+          }
+        }
       }
 
-      final existing = _pois[markerId];
-      final needsUpdate = existing == null ||
-          existing.position.latitude != position.latitude ||
-          existing.position.longitude != position.longitude ||
-          (_markerInfoWindows[markerId] ?? '') != infoTitle;
+      for (final record in records) {
+        final markerId = record.id;
+        final position = _resolveRecordPosition(record);
 
-      if (needsUpdate && existing != null) {
-        await controller.labelLayer.removePoi(existing);
-        _pois.remove(markerId);
-        _photoMarkerIcons.remove(markerId);
-      }
+        if (position == null) {
+          final poi = _pois.remove(markerId);
+          if (poi != null) {
+            await controller.labelLayer.removePoi(poi);
+          }
+          _markerInfoWindows.remove(markerId);
+          _photoMarkerIcons.remove(markerId);
+          _photoMarkerIconSources.remove(markerId);
+          if (_previouslySelectedMarkerId == markerId) {
+            _previouslySelectedMarkerId = null;
+          }
+          continue;
+        }
 
-      if (needsUpdate) {
-        final poi = await controller.labelLayer.addPoi(
-          position,
-          style: style,
-          id: markerId,
-          text: infoTitle,
-          onClick: () => _onMarkerTapped(markerId),
-        );
-        _pois[markerId] = poi;
-      }
+        var infoTitle = record.title;
+        if (record.latitude == null || record.longitude == null) {
+          infoTitle += ' (위치 없음)';
+        }
 
-      _markerInfoWindows[markerId] = infoTitle;
-      if (record.photoUrls.isNotEmpty) {
-        // 🟢 Signed URL은 매번 바뀌므로, iconSource는 GCS key로 비교 (key가 없으므로 첫번째 URL로 임시 비교)
-        final latestUrl = record.photoUrls.first;
-        final cachedIconSource = _photoMarkerIconSources[markerId];
-        if (cachedIconSource != null && cachedIconSource != latestUrl) {
+        final existing = _pois[markerId];
+        final needsUpdate = existing == null ||
+            existing.position.latitude != position.latitude ||
+            existing.position.longitude != position.longitude ||
+            (_markerInfoWindows[markerId] ?? '') != infoTitle;
+
+        if (needsUpdate && existing != null) {
+          await controller.labelLayer.removePoi(existing);
+          _pois.remove(markerId);
+          _photoMarkerIcons.remove(markerId);
+        }
+
+        if (needsUpdate) {
+          final poi = await controller.labelLayer.addPoi(
+            position,
+            style: style,
+            id: markerId,
+            text: infoTitle,
+            onClick: () => _onMarkerTapped(markerId),
+          );
+          _pois[markerId] = poi;
+        }
+
+        _markerInfoWindows[markerId] = infoTitle;
+        if (record.photoUrls.isNotEmpty) {
+          // 🟢 Signed URL은 매번 바뀌므로, iconSource는 GCS key로 비교 (key가 없으므로 첫번째 URL로 임시 비교)
+          final latestUrl = record.photoUrls.first;
+          final cachedIconSource = _photoMarkerIconSources[markerId];
+          if (cachedIconSource != null && cachedIconSource != latestUrl) {
+            _photoMarkerIcons.remove(markerId);
+            _photoMarkerIconSources.remove(markerId);
+          }
+        } else {
           _photoMarkerIcons.remove(markerId);
           _photoMarkerIconSources.remove(markerId);
         }
-      } else {
-        _photoMarkerIcons.remove(markerId);
-        _photoMarkerIconSources.remove(markerId);
       }
-    }
-  }
+    }}
 
   String get _sortOrderLabel {
     switch (_sortOrder) {
@@ -512,18 +541,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Future<LatLng?> _latLngFromExifPath(String filePath) async {
-    try {
-      final exif = await Exif.fromPath(filePath);
-      final coords = await exif.getLatLong();
-      await exif.close();
-      if (coords == null) return null;
-      return LatLng(coords.latitude, coords.longitude);
-    } catch (e) {
-      debugPrint('native_exif read failed: $e');
-      return null;
-    }
-  }
+
 
 
 

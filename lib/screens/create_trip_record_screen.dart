@@ -48,6 +48,7 @@ class _CreateTripRecordScreenState
   bool _isLoading = false; // 저장 로딩 상태
   bool _isUploading = false; // 이미지 업로드 로딩 상태
   String? _selectedGroupId;
+  bool _isGroupChanged = false;
 
   // 🟢 _photoKeys: DB에 저장될 최종 GCS 'key' 목록 (기존 + 신규)
   final List<String> _photoKeys = [];
@@ -200,6 +201,8 @@ class _CreateTripRecordScreenState
       double? currentLat = _isEditMode ? widget.recordToEdit!.latitude : widget.initialLatitude;
       double? currentLng = _isEditMode ? widget.recordToEdit!.longitude : widget.initialLongitude;
 
+      print('Submitting with Location: $currentLat, $currentLng');
+
       // 🟢 (수정) 최종 GCS 'key' 목록을 계산합니다.
       List<String> finalPhotoKeys = [];
 
@@ -234,6 +237,7 @@ class _CreateTripRecordScreenState
             content: _contentController.text,
             date: _selectedDate!,
             groupId: _selectedGroupId,
+            isGroupIdUpdated: _isGroupChanged,
             photoUrls: finalPhotoKeys, // 🟢 최종 key 목록
             latitude: currentLat,
             longitude: currentLng,
@@ -526,7 +530,10 @@ class _CreateTripRecordScreenState
                             ),
                           ],
                           onChanged: (value) {
-                            setState(() => _selectedGroupId = value);
+                            setState(() {
+                              _selectedGroupId = value;
+                              _isGroupChanged = true;
+                            });
                           },
                         ),
                       const SizedBox(height: 16),

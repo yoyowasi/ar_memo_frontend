@@ -77,7 +77,7 @@ final class TripRecordsProvider
   TripRecords create() => TripRecords();
 }
 
-String _$tripRecordsHash() => r'cadfb7d710ff3177a7ea0295dfa375b7cc213416';
+String _$tripRecordsHash() => r'5248af3747347f53fea3533a20a2347a845d0eff';
 
 abstract class _$TripRecords extends $AsyncNotifier<List<TripRecord>> {
   FutureOr<List<TripRecord>> build();

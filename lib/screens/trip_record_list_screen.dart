@@ -1,21 +1,19 @@
 // lib/screens/trip_record_list_screen.dart
 import 'dart:io';
-
 import 'package:ar_memo_frontend/models/trip_record.dart';
-import 'package:ar_memo_frontend/providers/group_provider.dart';
 import 'package:ar_memo_frontend/providers/trip_record_provider.dart';
 import 'package:ar_memo_frontend/providers/upload_provider.dart';
+import 'package:ar_memo_frontend/screens/create_trip_record_screen.dart';
 import 'package:ar_memo_frontend/screens/trip_record_detail_screen.dart';
 import 'package:ar_memo_frontend/theme/colors.dart';
 import 'package:ar_memo_frontend/theme/text_styles.dart';
-import 'package:ar_memo_frontend/screens/create_trip_record_screen.dart';
 import 'package:ar_memo_frontend/widgets/trip_record_search_delegate.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:native_exif/native_exif.dart';
+import 'package:geolocator/geolocator.dart';
 
 enum TripRecordFilter {
   all,
@@ -157,6 +155,95 @@ class TripRecordListScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _createTripRecordWithPhoto(BuildContext context, WidgetRef ref) async {
+    final picker = ImagePicker();
+    final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
+
+    if (!context.mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final repository = ref.read(uploadRepositoryProvider);
+      final result = await repository.uploadPhoto(pickedFile);
+
+      double? latitude;
+      double? longitude;
+
+      try {
+        final exif = await Exif.fromPath(pickedFile.path);
+        final coords = await exif.getLatLong();
+
+        if (coords != null) {
+          latitude = coords.latitude;
+          longitude = coords.longitude;
+          print('EXIF Location (auto): $latitude, $longitude');
+        } else {
+          print('getLatLong() failed, trying manual parsing...');
+          final latValue = await exif.getAttribute('GPSLatitude');
+          final latRef = await exif.getAttribute('GPSLatitudeRef');
+          final lonValue = await exif.getAttribute('GPSLongitude');
+          final lonRef = await exif.getAttribute('GPSLongitudeRef');
+
+          if (latValue != null && latRef != null && lonValue != null && lonRef != null) {
+            latitude = _convertDmsToDecimal(latValue, latRef);
+            longitude = _convertDmsToDecimal(lonValue, lonRef);
+            print('EXIF Location (manual): $latitude, $longitude');
+          }
+        }
+        await exif.close();
+      } catch (e) {
+        print('EXIF read failed: $e');
+      }
+
+      // EXIF에서 위치 정보를 가져오지 못한 경우, 현재 위치를 가져옵니다.
+      if (latitude == null || longitude == null) {
+        print('EXIF location not found, getting current location...');
+        try {
+          LocationPermission permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.denied) {
+            permission = await Geolocator.requestPermission();
+          }
+          if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+            print('Location permission denied.');
+          } else {
+            final position = await Geolocator.getCurrentPosition();
+            latitude = position.latitude;
+            longitude = position.longitude;
+            print('Current Location: $latitude, $longitude');
+          }
+        } catch (e) {
+          print('Failed to get current location: $e');
+        }
+      }
+
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // Dismiss the dialog
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CreateTripRecordScreen(
+            initialPhotoKeys: [result.key],
+            initialPhotoUrls: [result.url],
+            initialLatitude: latitude,
+            initialLongitude: longitude,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // Dismiss the dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('사진 업로드 실패: $e')),
+      );
+    }
+  }
+
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -166,12 +253,7 @@ class TripRecordListScreen extends ConsumerWidget {
       backgroundColor: backgroundColor,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => CreateTripRecordScreen()),
-          );
-        },
+        onPressed: () => _createTripRecordWithPhoto(context, ref),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.edit_outlined),
@@ -210,12 +292,7 @@ class TripRecordListScreen extends ConsumerWidget {
               const Text('새로운 여행 기록을 추가해보세요.', style: bodyText2),
               const SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => CreateTripRecordScreen()),
-                  );
-                },
+                onPressed: () => _createTripRecordWithPhoto(context, ref),
                 icon: const Icon(Icons.add),
                 label: const Text('일기 쓰기'),
                 style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white),
@@ -285,5 +362,31 @@ class TripRecordListScreen extends ConsumerWidget {
         error: (err, stack) => Center(child: Text('일기 목록 로딩 오류: $err')),
       ),
     );
+  }
+}
+
+double? _convertDmsToDecimal(String dmsString, String ref) {
+  try {
+    List<String> parts = dmsString.split(',');
+    if (parts.length != 3) return null;
+
+    List<double> dms = parts.map((part) {
+      List<String> div = part.split('/');
+      if (div.length != 2) throw const FormatException('Invalid DMS part');
+      double numerator = double.parse(div[0]);
+      double denominator = double.parse(div[1]);
+      if (denominator == 0) return 0.0;
+      return numerator / denominator;
+    }).toList();
+
+    double decimal = dms[0] + (dms[1] / 60) + (dms[2] / 3600);
+
+    if (ref == 'S' || ref == 'W') {
+      decimal = -decimal;
+    }
+    return decimal;
+  } catch (e) {
+    print('Error converting DMS to decimal: $e');
+    return null;
   }
 }
