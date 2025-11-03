@@ -20,7 +20,7 @@ class TripRecords extends _$TripRecords {
     return ref.watch(tripRecordRepositoryProvider).getTripRecords();
   }
 
-  Future<void> addTripRecord({
+  Future addTripRecord({
     required String title,
     required DateTime date,
     String? content,
@@ -48,7 +48,7 @@ class TripRecords extends _$TripRecords {
     }
   }
 
-  Future<void> updateTripRecord({
+  Future updateTripRecord({
     required String id,
     String? title,
     DateTime? date,
@@ -81,13 +81,29 @@ class TripRecords extends _$TripRecords {
     }
   }
 
-  Future<void> deleteTripRecord(String id) async {
+  // 🟢 개선된 deleteTripRecord 메서드
+  Future deleteTripRecord(String id) async {
     final repository = ref.read(tripRecordRepositoryProvider);
     try {
-      await repository.deleteTripRecord(id);
-      ref.invalidateSelf();
-      ref.invalidate(tripRecordDetailProvider(id));
-      ref.invalidate(memorySummaryProvider);
+      // 낙관적 업데이트: UI를 먼저 업데이트
+      final previousState = state;
+      state = await AsyncValue.guard(() async {
+        final currentRecords = await future;
+        return currentRecords.where((record) => record.id != id).toList();
+      });
+
+      try {
+        // 실제 서버 삭제
+        await repository.deleteTripRecord(id);
+
+        // 관련 Provider 무효화
+        ref.invalidate(tripRecordDetailProvider(id));
+        ref.invalidate(memorySummaryProvider);
+      } catch (e) {
+        // 삭제 실패 시 이전 상태로 롤백
+        state = previousState;
+        rethrow;
+      }
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       rethrow;

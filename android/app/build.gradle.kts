@@ -26,9 +26,11 @@ if (keyPropertiesFile.exists()) {
 val flutterVersionCode = localProperties.getProperty("flutter.versionCode")
 val flutterVersionName = localProperties.getProperty("flutter.versionName")
 
+// 🟢 카카오 네이티브 앱 키 로드
+val kakaoNativeAppKey = localProperties.getProperty("KAKAO_MAP_NATIVE_APP_KEY") ?: ""
+
 android {
     namespace = "com.example.ar_memo_frontend"
-    // 🟢 [수정] 로그의 추천대로 36으로 설정
     compileSdk = (localProperties.getProperty("flutter.compileSdkVersion") ?: "36").toInt()
     ndkVersion = localProperties.getProperty("flutter.ndkVersion") ?: "27.0.12077973"
 
@@ -55,14 +57,15 @@ android {
     defaultConfig {
         applicationId = "com.example.ar_memo_frontend"
         minSdk = (localProperties.getProperty("flutter.minSdkVersion") ?: "24").toInt()
-        // 🟢 [수정] compileSdk와 동일하게 36으로 설정
         targetSdk = (localProperties.getProperty("flutter.targetSdkVersion") ?: "36").toInt()
         versionCode = flutterVersionCode?.toInt() ?: 1
-        // 🟢 [수정] 이전의 줄바꿈 오류 수정
         versionName = flutterVersionName ?: "1.0"
 
         multiDexEnabled = true
-        manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] = "a04b18bad57c4a8b33e9eccada1f9748"
+
+        // 🟢 local.properties에서 로드한 키 사용
+        manifestPlaceholders["KAKAO_MAP_NATIVE_APP_KEY"] = kakaoNativeAppKey
+        manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] = kakaoNativeAppKey
     }
 
     buildTypes {
@@ -77,11 +80,11 @@ android {
         }
     }
 }
-// ✅ Kotlin Toolchain으로도 17을 강제 (추가 안전장치)
+
 kotlin {
     jvmToolchain(17)
 }
+
 dependencies {
-    // ✅ EXIF 읽기를 위한 네이티브 의존성 추가
     implementation("androidx.exifinterface:exifinterface:1.4.1")
 }

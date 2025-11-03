@@ -6,26 +6,84 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
-// Removed KakaoSdk.init and javascriptAppKey logic
-// The native app keys configured in AndroidManifest.xml and Info.plist should be sufficient.
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env"); // .env 파일 로드
-  await initializeDateFormatting('ko_KR', null);
 
-  KakaoMapSdk.instance.initialize('a04b18bad57c4a8b33e9eccada1f9748');
+  try {
+    // .env 파일 로드
+    await dotenv.load(fileName: ".env");
 
-  final apiService = await createApiService();
+    // 한국어 날짜 형식 초기화
+    await initializeDateFormatting('ko_KR', null);
 
-  runApp(
-    ProviderScope(
-      overrides: [
-        apiServiceProvider.overrideWithValue(apiService),
-      ],
-      child: const MyApp(),
-    ),
-  );
+    // 카카오 맵 네이티브 앱 키 불러오기
+    final kakaoNativeAppKey = dotenv.env['KAKAO_MAP_NATIVE_APP_KEY'];
+
+    if (kakaoNativeAppKey == null || kakaoNativeAppKey.isEmpty) {
+      throw Exception(
+          "KAKAO_MAP_NATIVE_APP_KEY not found in .env file. "
+              "Please check your .env file."
+      );
+    }
+
+    // 카카오 맵 SDK 초기화 (v1.2.1에서는 동기 메서드)
+    KakaoMapSdk.instance.initialize(kakaoNativeAppKey);
+
+    // API 서비스 초기화
+    final apiService = await createApiService();
+
+    runApp(
+      ProviderScope(
+        overrides: [
+          apiServiceProvider.overrideWithValue(apiService),
+        ],
+        child: const MyApp(),
+      ),
+    );
+  } catch (e) {
+    // 초기화 실패 시 에러 처리
+    debugPrint('앱 초기화 실패: $e');
+
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    color: Colors.red,
+                    size: 64,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '앱 초기화 중 오류가 발생했습니다',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$e',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -41,11 +99,15 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: primaryColor),
         useMaterial3: true,
         fontFamily: 'Pretendard',
-        appBarTheme: const AppBarTheme( // 테마 일관성
+        appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           foregroundColor: textColor,
           elevation: 0,
-          titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
+          titleTextStyle: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
           iconTheme: IconThemeData(color: textColor),
         ),
       ),

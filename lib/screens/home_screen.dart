@@ -14,7 +14,6 @@ import 'package:ar_memo_frontend/widgets/trip_record_search_delegate.dart';
 
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:native_exif/native_exif.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -29,7 +28,8 @@ enum RecordSortOrder {
   title,
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with AutomaticKeepAliveClientMixin {
   KakaoMapController? _mapController;
 
   final Map<String, String> _markerInfoWindows = {};
@@ -49,6 +49,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   RecordSortOrder _sortOrder = RecordSortOrder.latest;
   String? _selectedGroupId;
 
+  Timer? _markerSyncDebounce;
+
+  @override
+  bool get wantKeepAlive => true;
+
   @override
   void initState() {
     super.initState();
@@ -60,7 +65,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         tripRecordsProvider,
             (previous, next) {
           next.whenData((records) {
-            _syncMarkers(_applyFilters(records));
+            _debouncedSyncMarkers(_applyFilters(records));
           });
         },
       );
@@ -71,11 +76,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   void dispose() {
+    _markerSyncDebounce?.cancel();
     _tripRecordsSubscription?.close();
     _recordPageController.dispose();
     _currentRecordPageNotifier.dispose();
     _sheetController.dispose();
     super.dispose();
+  }
+
+  void _debouncedSyncMarkers(List<TripRecord> records) {
+    if (!mounted) return;
+    _markerSyncDebounce?.cancel();
+    _markerSyncDebounce = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        _syncMarkers(records);
+      }
+    });
   }
 
   List<TripRecord> _sortRecords(List<TripRecord> records) {
@@ -116,7 +132,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (record.latitude != null && record.longitude != null) {
       return LatLng(record.latitude!, record.longitude!);
     }
-
     return null;
   }
 
@@ -131,6 +146,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final style = PoiStyle(icon: _poiIcon!);
     final newIds = records.map((record) => record.id).toSet();
 
+    // 🟢 기존 마커 중 삭제할 것들 제거 (한 번만)
     for (final markerId in List<String>.from(_pois.keys)) {
       if (!newIds.contains(markerId)) {
         final poi = _pois.remove(markerId);
@@ -147,36 +163,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     }
 
-    for (final record in records) {
-      final markerId = record.id;
-      final position = _resolveRecordPosition(record);
-      print('Record ${record.id}: position is $position');
+    // 🟢 배치 처리: 10개씩 묶어서 처리
+    const batchSize = 10;
+    for (var i = 0; i < records.length; i += batchSize) {
+      final batch = records.skip(i).take(batchSize);
 
-      await _preparePoiIcon();
-      if (_poiIcon == null) return;
-
-      final style = PoiStyle(icon: _poiIcon!);
-      final newIds = records.map((record) => record.id).toSet();
-
-      for (final markerId in List<String>.from(_pois.keys)) {
-        if (!newIds.contains(markerId)) {
-          final poi = _pois.remove(markerId);
-          if (poi != null) {
-            await controller.labelLayer.removePoi(poi);
-          }
-          _markerInfoWindows.remove(markerId);
-          _photoMarkerIcons.remove(markerId);
-          _photoMarkerIconSources.remove(markerId);
-          _fallbackPositions.remove(markerId);
-          if (_previouslySelectedMarkerId == markerId) {
-            _previouslySelectedMarkerId = null;
-          }
-        }
-      }
-
-      for (final record in records) {
+      for (final record in batch) {
         final markerId = record.id;
         final position = _resolveRecordPosition(record);
+        print('Record ${record.id}: position is $position');
 
         if (position == null) {
           final poi = _pois.remove(markerId);
@@ -221,8 +216,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         }
 
         _markerInfoWindows[markerId] = infoTitle;
+
         if (record.photoUrls.isNotEmpty) {
-          // 🟢 Signed URL은 매번 바뀌므로, iconSource는 GCS key로 비교 (key가 없으므로 첫번째 URL로 임시 비교)
           final latestUrl = record.photoUrls.first;
           final cachedIconSource = _photoMarkerIconSources[markerId];
           if (cachedIconSource != null && cachedIconSource != latestUrl) {
@@ -234,7 +229,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           _photoMarkerIconSources.remove(markerId);
         }
       }
-    }}
+
+      // 🟢 배치마다 100ms 대기 (Rate Limit 회피)
+      if (i + batchSize < records.length) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+    }
+  }
 
   String get _sortOrderLabel {
     switch (_sortOrder) {
@@ -299,7 +300,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _selectedGroupId = groupId;
     });
     final records = ref.read(tripRecordsProvider).asData?.value ?? [];
-    _syncMarkers(_applyFilters(records));
+    _debouncedSyncMarkers(_applyFilters(records));
   }
 
   void _toggleSheetSize() {
@@ -370,7 +371,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
 
     if (record.photoUrls.isNotEmpty) {
-      // 🟢 Signed URL은 매번 바뀌므로, URL 자체로 캐시 키 사용
       final latestUrl = record.photoUrls.first;
       if (_photoMarkerIconSources[recordId] != latestUrl) {
         _photoMarkerIcons.remove(recordId);
@@ -386,7 +386,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               image: DecorationImage(
-                // 🟢 toAbsoluteUrl 제거 (Signed URL은 이미 절대 경로)
                   image: NetworkImage(record.photoUrls.first),
                   fit: BoxFit.cover),
               border: Border.all(color: Colors.white, width: 2),
@@ -541,12 +540,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-
-
-
-
   @override
   Widget build(BuildContext context) {
+    super.build(context);
+
     final tripRecordsAsyncValue = ref.watch(tripRecordsProvider);
     final groupsAsyncValue = ref.watch(myGroupsProvider);
 
@@ -554,6 +551,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: Stack(
         children: [
           KakaoMap(
+            key: const ValueKey('kakao_map_home'),
             option: KakaoMapOption(
               position: _currentMapCenter ?? const LatLng(37.5665, 126.9780),
               zoomLevel: 15,
@@ -563,7 +561,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               await _preparePoiIcon();
               await _moveToCurrentUserLocation();
               final records = tripRecordsAsyncValue.asData?.value ?? [];
-              await _syncMarkers(_applyFilters(records));
+              _debouncedSyncMarkers(_applyFilters(records));
             },
             onCameraMoveEnd: (cameraPosition, gestureType) {
               _currentMapCenter = cameraPosition.position;
@@ -812,7 +810,6 @@ class _TripRecordSlideCard extends StatelessWidget {
                 aspectRatio: 16 / 9,
                 child: record.photoUrls.isNotEmpty
                     ? Image.network(
-                  // 🟢 toAbsoluteUrl 제거 (Signed URL은 이미 절대 경로)
                   record.photoUrls.first,
                   fit: BoxFit.cover,
                   loadingBuilder: (context, child, loadingProgress) {
@@ -922,5 +919,4 @@ class _TripRecordSlideCard extends StatelessWidget {
       ),
     );
   }
-
 }
